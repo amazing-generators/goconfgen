@@ -1,0 +1,91 @@
+package {{ .PackageName }}
+
+{{- if .EnumObjArr }}
+    import (
+    "encoding/json"
+    "fmt"
+    )
+{{- end }}
+
+// // // // // // // // // //
+
+
+{{- range .EnumObjArr }}
+
+    {{- $enum := . }}
+    {{- range commentLines $enum.UsageText }}
+        // {{ . }}
+    {{- end }}
+    type {{ $enum.TypeName }} uint16
+
+    const (
+    {{- range $index, $constName := $enum.ConstNameArr }}
+        {{- if eq $index 0 }}
+            {{ $constName }} {{ $enum.TypeName }} = iota
+        {{- else }}
+            {{ $constName }}
+        {{- end }}
+    {{- end }}
+    )
+
+    var c{{ $enum.TypeName }}NameArr = []string{ {{ quoteJoin $enum.ValueTextArr }} }
+
+    func (obj {{ $enum.TypeName }}) String() string {
+    index := int(obj)
+    if index < 0 || index >= len(c{{ $enum.TypeName }}NameArr) {
+    return "unknown"
+    }
+    return c{{ $enum.TypeName }}NameArr[index]
+    }
+
+    func (obj {{ $enum.TypeName }}) IsValid() bool {
+    index := int(obj)
+    return index >= 0 && index < len(c{{ $enum.TypeName }}NameArr)
+    }
+
+    func Parse{{ $enum.TypeName }}(text string) ({{ $enum.TypeName }}, error) {
+    {{- range $index, $valueText := $enum.ValueTextArr }}
+        if text == {{ quote $valueText }} {
+        return {{ index $enum.ConstNameArr $index }}, nil
+        }
+    {{- end }}
+    return 0, fmt.Errorf("unsupported enum value: %s", text)
+    }
+
+    func {{ $enum.TypeName }}ValueArr() []string {
+    return append([]string(nil), c{{ $enum.TypeName }}NameArr...)
+    }
+
+    func (obj {{ $enum.TypeName }}) MarshalText() ([]byte, error) {
+    if !obj.IsValid() {
+    return nil, fmt.Errorf("invalid enum value: %d", obj)
+    }
+    return []byte(obj.String()), nil
+    }
+
+    func (obj *{{ $enum.TypeName }}) UnmarshalText(data []byte) error {
+    value, err := Parse{{ $enum.TypeName }}(string(data))
+    if err != nil {
+    return err
+    }
+    *obj = value
+    return nil
+    }
+
+    func (obj {{ $enum.TypeName }}) MarshalJSON() ([]byte, error) {
+    textArr, err := obj.MarshalText()
+    if err != nil {
+    return nil, err
+    }
+    return json.Marshal(string(textArr))
+    }
+
+    func (obj *{{ $enum.TypeName }}) UnmarshalJSON(data []byte) error {
+    var text string
+    if err := json.Unmarshal(data, &text); err != nil {
+    return err
+    }
+    return obj.UnmarshalText([]byte(text))
+    }
+
+{{- end }}

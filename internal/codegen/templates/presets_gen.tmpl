@@ -1,0 +1,88 @@
+package {{ .PackageName }}
+
+{{- if .PresetImportTextArr }}
+import (
+{{- range .PresetImportTextArr }}
+{{ importLine . }}
+{{- end }}
+)
+{{- end }}
+
+// // // // // // // // // //
+
+var cPresetDataArr = []byte{ {{ hexBytes .PresetDataArr }} }
+
+const (
+{{- range .PresetObjArr }}
+{{- if .PresentFlag }}
+{{- if $.HasYAML }}
+cPreset{{ .TitleText }}YAMLStart = {{ .YAMLStart }}
+cPreset{{ .TitleText }}YAMLLen = {{ .YAMLLen }}
+{{- end }}
+{{- if $.HasJSON }}
+cPreset{{ .TitleText }}JSONStart = {{ .JSONStart }}
+cPreset{{ .TitleText }}JSONLen = {{ .JSONLen }}
+{{- end }}
+{{- if $.HasHJSON }}
+cPreset{{ .TitleText }}HJSONStart = {{ .HJSONStart }}
+cPreset{{ .TitleText }}HJSONLen = {{ .HJSONLen }}
+{{- end }}
+{{- end }}
+{{- end }}
+)
+
+func mustPresetSlice(startVal int, lengthVal int) []byte {
+dataArr := make([]byte, lengthVal)
+copy(dataArr, cPresetDataArr[startVal:startVal+lengthVal])
+return dataArr
+}
+
+{{ range .PresetObjArr }}
+{{ if .SourcePathText -}}
+// Preset source: {{ .SourcePathText }}
+{{ end -}}
+func Has{{ .TitleText }}() bool {
+return {{ boolLiteral .PresentFlag }}
+}
+
+{{ if $.HasYAML -}}
+func {{ .TitleText }}YAML() []byte {
+{{- if .PresentFlag }}
+return mustPresetSlice(cPreset{{ .TitleText }}YAMLStart, cPreset{{ .TitleText }}YAMLLen)
+{{- else }}
+return nil
+{{- end }}
+}
+{{- end }}
+
+{{ if $.HasJSON -}}
+func {{ .TitleText }}JSON() []byte {
+{{- if .PresentFlag }}
+return mustPresetSlice(cPreset{{ .TitleText }}JSONStart, cPreset{{ .TitleText }}JSONLen)
+{{- else }}
+return nil
+{{- end }}
+}
+{{- end }}
+
+{{ if $.HasHJSON -}}
+func {{ .TitleText }}HJSON() []byte {
+{{- if .PresentFlag }}
+return mustPresetSlice(cPreset{{ .TitleText }}HJSONStart, cPreset{{ .TitleText }}HJSONLen)
+{{- else }}
+return nil
+{{- end }}
+}
+{{- end }}
+
+func {{ .TitleText }}Config() (*ConfigObj, error) {
+{{- if .FullFlag }}
+return parseConfigPrimary({{ .TitleText }}{{ $.PrimaryFormatTitle }}(), false)
+{{- else }}
+if !Has{{ .TitleText }}() {
+return nil, nil
+}
+return parseConfigPrimary({{ .TitleText }}{{ $.PrimaryFormatTitle }}(), false)
+{{- end }}
+}
+{{ end }}

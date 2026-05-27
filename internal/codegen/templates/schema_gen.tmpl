@@ -1,0 +1,32 @@
+package {{ .PackageName }}
+
+// // // // // // // // // //
+
+var cRootBranchObj = {{ template "branchLiteral" .RootObj }}
+
+{{- define "branchLiteral" -}}
+&runtimeBranchObj{
+PathText: {{ quote .PathText }},
+KeyText: {{ quote .KeyText }},
+UsageText: {{ quote .UsageText }},
+EntryObjArr: []*runtimeEntryObj{
+{{- range .EntryObjArr }}
+{{- if .BranchObj }}
+{KeyText: {{ quote .BranchObj.KeyText }}, BranchFlag: true},
+{{- else }}
+{KeyText: {{ quote .FieldObj.KeyText }}, BranchFlag: false},
+{{- end }}
+{{- end }}
+},
+BranchObjArr: []*runtimeBranchObj{
+{{- range .BranchObjArr }}
+{{ template "branchLiteral" . }},
+{{- end }}
+},
+FieldObjArr: []*fieldMetaObj{
+{{- range .FieldObjArr }}
+{{ fieldMetaVarName . }},
+{{- end }}
+},
+}
+{{- end -}}

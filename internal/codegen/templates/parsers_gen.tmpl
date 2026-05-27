@@ -1,0 +1,111 @@
+package {{ .PackageName }}
+
+import (
+{{- if .HasCLI }}
+"flag"
+{{- end }}
+"fmt"
+"os"
+"path/filepath"
+"strings"
+)
+
+// // // // // // // // // //
+
+type ParserInterface interface {
+Name() string
+IsFile() bool
+IsCLI() bool
+IsRender() bool
+IsPreset() bool
+IsFileMatch(pathText string) bool
+FileExtArr() []string
+Parse(dataArr []byte) (*ConfigObj, error)
+{{- if .HasCLI }}
+RegisterFlags(flagSet *flag.FlagSet)
+ApplyFlags(obj *ConfigObj) error
+HelpText() string
+{{- end }}
+{{- if .HasRender }}
+Render(obj *ConfigObj) ([]byte, error)
+RenderPresent(obj *ConfigObj) ([]byte, error)
+{{- end }}
+{{- if .HasPresets }}
+FullPreset() []byte
+MinimalPreset() []byte
+MediumPreset() []byte
+HasFull() bool
+HasMinimal() bool
+HasMedium() bool
+{{- end }}
+}
+
+var SupportedParserArr = []ParserInterface{
+{{- if .HasYAML }}
+yamlParserObj{},
+{{- end }}
+{{- if .HasJSON }}
+jsonParserObj{},
+{{- end }}
+{{- if .HasHJSON }}
+hjsonParserObj{},
+{{- end }}
+{{- if .HasCLI }}
+cliParserObj{},
+{{- end }}
+}
+
+// //
+
+func ParserByName(nameText string) (ParserInterface, bool) {
+nameText = strings.TrimSpace(strings.ToLower(nameText))
+for _, parserObj := range SupportedParserArr {
+if parserObj.Name() == nameText {
+return parserObj, true
+}
+}
+return nil, false
+}
+
+func FileParserByPath(pathText string) (ParserInterface, bool) {
+for _, parserObj := range SupportedParserArr {
+if parserObj.IsFileMatch(pathText) {
+return parserObj, true
+}
+}
+return nil, false
+}
+
+func ParseFile(pathText string) (*ConfigObj, error) {
+dataArr, err := os.ReadFile(pathText)
+if err != nil {
+return nil, fmt.Errorf("read config file: %w", err)
+}
+parserObj, ok := FileParserByPath(pathText)
+if !ok {
+return nil, fmt.Errorf("unsupported config file extension: %s", filepath.Ext(pathText))
+}
+return parserObj.Parse(dataArr)
+}
+
+func matchParserExt(parserObj ParserInterface, pathText string) bool {
+extText := strings.ToLower(filepath.Ext(pathText))
+for _, itemText := range parserObj.FileExtArr() {
+if extText == itemText {
+return true
+}
+}
+return false
+}
+
+{{- if .HasRender }}
+func unsupportedParserRender(nameText string) ([]byte, error) {
+return nil, fmt.Errorf("parser [%s] does not render config", nameText)
+}
+{{- end }}
+
+{{- if .HasPresets }}
+func unsupportedParserPreset(nameText string) []byte {
+return nil
+}
+{{- end }}

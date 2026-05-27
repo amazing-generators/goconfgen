@@ -1,0 +1,129 @@
+package {{ .PackageName }}
+
+{{- if .TypeImportTextArr }}
+import (
+{{- range .TypeImportTextArr }}
+{{ importLine . }}
+{{- end }}
+)
+{{- end }}
+
+// // // // // // // // // //
+
+{{- if .HasSize }}
+type SizeObj uint64
+
+func ParseSize(text string) (SizeObj, error) {
+value, err := parseSize(text)
+return SizeObj(value), err
+}
+
+func (obj SizeObj) String() string {
+return toCanonicalSizeText(uint64(obj))
+}
+
+func (obj SizeObj) MarshalText() ([]byte, error) {
+return []byte(obj.String()), nil
+}
+
+func (obj *SizeObj) UnmarshalText(data []byte) error {
+value, err := ParseSize(string(data))
+if err != nil {
+return err
+}
+*obj = value
+return nil
+}
+
+func (obj SizeObj) MarshalJSON() ([]byte, error) {
+return json.Marshal(obj.String())
+}
+
+func (obj *SizeObj) UnmarshalJSON(data []byte) error {
+var text string
+if err := json.Unmarshal(data, &text); err == nil {
+value, parseErr := ParseSize(text)
+if parseErr != nil {
+return parseErr
+}
+*obj = value
+return nil
+}
+
+var raw uint64
+if err := json.Unmarshal(data, &raw); err != nil {
+return err
+}
+
+*obj = SizeObj(raw)
+return nil
+}
+{{ end }}
+
+type fieldOriginObj uint8
+
+const (
+fieldOriginDefault fieldOriginObj = iota
+fieldOriginFile
+fieldOriginCLI
+)
+
+{{ template "branchType" .RootObj }}
+
+{{- if .HasInterfaces }}
+{{ template "branchInterfaces" .RootObj }}
+{{- end }}
+
+{{ define "branchType" }}
+type {{ .TypeNameText }} struct {
+{{- if eq .PathText "" }}
+originMap map[string]fieldOriginObj
+{{- end }}
+{{- range .BranchObjArr }}
+{{- range commentLines .UsageText }}
+// {{ . }}
+{{- end }}
+{{ goName .KeyText }} {{ .TypeNameText }}
+{{- end }}
+{{- range .FieldObjArr }}
+{{- range commentLines .UsageText }}
+// {{ . }}
+{{- end }}
+{{ goName .KeyText }} {{ fieldGoType . }}
+{{- end }}
+}
+{{ range .BranchObjArr }}
+
+{{ template "branchType" . }}
+{{- end }}
+{{ end }}
+
+{{ define "branchInterfaces" }}
+{{- if and (ne .PathText "") .GenInterfaceFlag }}
+{{- $branch := . }}
+type {{ .InterfaceTypeText }} interface {
+{{- range .BranchObjArr }}
+Get{{ goName .KeyText }}() {{ interfaceReturnType . }}
+{{- end }}
+{{- range .FieldObjArr }}
+Get{{ goName .KeyText }}() {{ fieldGoType . }}
+{{- end }}
+}
+
+{{- range .BranchObjArr }}
+func (obj {{ $branch.TypeNameText }}) Get{{ goName .KeyText }}() {{ interfaceReturnType . }} {
+return obj.{{ goName .KeyText }}
+}
+
+{{- end }}
+{{- range .FieldObjArr }}
+func (obj {{ $branch.TypeNameText }}) Get{{ goName .KeyText }}() {{ fieldGoType . }} {
+return obj.{{ goName .KeyText }}
+}
+
+{{- end }}
+{{- end }}
+{{- range .BranchObjArr }}
+{{ template "branchInterfaces" . }}
+{{- end }}
+{{ end }}

@@ -1,0 +1,151 @@
+name: "Release"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.23.0"
+
+jobs:
+  prepare:
+    name: "Prepare"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - uses: ./.github/actions/init-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: ./.github/actions/tidy-all-and-generate
+
+      - name: Upload source
+        uses: actions/upload-artifact@v7
+        with:
+          name: src-gen
+          path: .
+
+  test:
+    name: "Test [${{ matrix.os }}]"
+    needs: [ prepare ]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15, windows-latest ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Download source
+        uses: actions/download-artifact@v8
+        with:
+          name: src-gen
+          path: .
+
+      - uses: ./.github/actions/init-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: ./.github/actions/run-tests
+
+  bump-version:
+    name: "Minor version bump"
+    needs: [ test ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: ./.github/actions/github-setup-user
+
+      - uses: ./.github/actions/init-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - uses: ./.github/actions/tidy-all-and-generate
+
+      - name: Increment minor version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          new_ver="$(go run github.com/amazing-generators/gometagen/cmd/gometagen@latest version minor -source ./_run/values.yml)"
+          echo "New version: ${new_ver}"
+
+          git add _run/values.yml
+          git commit -m "minor(${new_ver}): release"
+          git push origin HEAD:main
+
+  release:
+    name: "Release"
+    needs: [ bump-version ]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: ./.github/actions/init-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Refresh main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch origin main --tags
+          git reset --hard origin/main
+
+      - uses: ./.github/actions/github-setup-user
+
+      - name: Read release version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          build_ver="$(go run github.com/amazing-generators/gometagen/cmd/gometagen@latest version print -source ./_run/values.yml)"
+          echo "BUILD_VER=${build_ver}" >> "$GITHUB_ENV"
+
+      - name: Create tag ${{ env.BUILD_VER }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git tag -a "${BUILD_VER}" -m "Release ${BUILD_VER}"
+          git push origin "${BUILD_VER}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.BUILD_VER }}
+          name: ${{ env.BUILD_VER }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup artifacts
+        if: always()
+        uses: geekyeggo/delete-artifact@v6
+        with:
+          name: src-gen
+          failOnError: false

@@ -1,0 +1,93 @@
+package {{ .PackageName }}
+
+import (
+{{- range .FlagImportTextArr }}
+{{ importLine . }}
+{{- end }}
+)
+
+// // // // // // // // // //
+
+type CLIFlagsObj struct {
+{{- range .FieldObjArr }}
+{{ flagVarName . }} {{ if and (eq .TypeObj.SchemaText "bool") (eq .TypeObj.Family "scalar") }}*runtimeBoolFlagObj{{ else }}*runtimeStringFlagObj{{ end }}
+{{- end }}
+flagByPathMap map[string]runtimeFlagInterface
+}
+
+var cDefaultCLIFlagsObj = NewCLIFlags()
+
+// //
+
+func NewCLIFlags() *CLIFlagsObj {
+obj := &CLIFlagsObj{
+{{- range .FieldObjArr }}
+{{ flagVarName . }}: {{ flagCtorExpr . }},
+{{- end }}
+}
+obj.flagByPathMap = map[string]runtimeFlagInterface{
+{{- range .FieldObjArr }}
+{{ quote .PathText }}: obj.{{ flagVarName . }},
+{{- end }}
+}
+return obj
+}
+
+func (obj *CLIFlagsObj) RegisterFlags(flagSet *flag.FlagSet) {
+if obj == nil || flagSet == nil {
+return
+}
+{{- range .FieldObjArr }}
+flagSet.Var(obj.{{ flagVarName . }}, {{ quote .PathText }}, {{ quote (singleLineUsage .UsageText) }})
+{{- end }}
+}
+
+func (flagsObj *CLIFlagsObj) ApplyFlags(obj *ConfigObj) error {
+if flagsObj == nil {
+return fmt.Errorf("cli flags are nil")
+}
+if obj == nil {
+return fmt.Errorf("config is nil")
+}
+for _, fieldMeta := range cFieldMetaArr {
+flagObj := flagsObj.flagByPathMap[fieldMeta.PathText]
+if flagObj == nil || !flagObj.IsSeen() {
+continue
+}
+if fieldMeta.ParseFlag == nil {
+return fmt.Errorf("field [%s] does not support cli parsing", fieldMeta.PathText)
+}
+if err := fieldMeta.ParseFlag(obj, flagObj.Text(), fieldOriginCLI); err != nil {
+return err
+}
+}
+{{- if .HasValidate }}
+    if err := obj.Validate(); err != nil {
+    return err
+    }
+{{- end }}
+return nil
+}
+
+// //
+
+func RegisterFlags(flagSet *flag.FlagSet) {
+cDefaultCLIFlagsObj = NewCLIFlags()
+cDefaultCLIFlagsObj.RegisterFlags(flagSet)
+}
+
+func ApplyFlags(obj *ConfigObj) error {
+if cDefaultCLIFlagsObj == nil {
+cDefaultCLIFlagsObj = NewCLIFlags()
+}
+return cDefaultCLIFlagsObj.ApplyFlags(obj)
+}
+
+func HelpText() string {
+lineTextArr := []string{
+{{- range .FieldObjArr }}
+{{ quote (printf "--%s  %s" .PathText (singleLineUsage .UsageText)) }},
+{{- end }}
+}
+return strings.Join(lineTextArr, "\n")
+}

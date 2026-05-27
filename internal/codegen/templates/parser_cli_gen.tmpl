@@ -1,0 +1,36 @@
+package {{ .PackageName }}
+
+import (
+"flag"
+"fmt"
+)
+
+// // // // // // // // // //
+
+type cliParserObj struct{}
+
+func (cliParserObj) Name() string { return "cli" }
+func (cliParserObj) IsFile() bool { return false }
+func (cliParserObj) IsCLI() bool { return true }
+func (cliParserObj) IsRender() bool { return false }
+func (cliParserObj) IsPreset() bool { return false }
+func (cliParserObj) FileExtArr() []string { return nil }
+func (cliParserObj) IsFileMatch(pathText string) bool { return false }
+func (cliParserObj) Parse(dataArr []byte) (*ConfigObj, error) {
+return nil, fmt.Errorf("cli parser does not parse byte data")
+}
+func (cliParserObj) RegisterFlags(flagSet *flag.FlagSet) { RegisterFlags(flagSet) }
+func (cliParserObj) ApplyFlags(obj *ConfigObj) error { return ApplyFlags(obj) }
+func (cliParserObj) HelpText() string { return HelpText() }
+{{- if .HasRender }}
+func (cliParserObj) Render(obj *ConfigObj) ([]byte, error) { return unsupportedParserRender("cli") }
+func (cliParserObj) RenderPresent(obj *ConfigObj) ([]byte, error) { return unsupportedParserRender("cli") }
+{{- end }}
+{{- if .HasPresets }}
+func (cliParserObj) FullPreset() []byte { return unsupportedParserPreset("cli") }
+func (cliParserObj) MinimalPreset() []byte { return unsupportedParserPreset("cli") }
+func (cliParserObj) MediumPreset() []byte { return unsupportedParserPreset("cli") }
+func (cliParserObj) HasFull() bool { return false }
+func (cliParserObj) HasMinimal() bool { return false }
+func (cliParserObj) HasMedium() bool { return false }
+{{- end }}

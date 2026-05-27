@@ -1,0 +1,7 @@
+/target/
+/tmp/
+.idea/
+CLAUDE.md
+*.bin
+*.exe
+.env
