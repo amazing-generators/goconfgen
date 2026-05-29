@@ -1,0 +1,89 @@
+package {{ .PackageName }}
+
+{{- if .AccessorImportTextArr }}
+import (
+{{- range .AccessorImportTextArr }}
+{{ importLine . }}
+{{- end }}
+)
+{{- end }}
+
+// // // // // // // // // //
+
+func New() ConfigObj {
+obj := ConfigObj{}
+obj.ApplyDefaults()
+return obj
+}
+
+func newConfigWithDefaults(applyDefaultsFlag bool) *ConfigObj {
+obj := &ConfigObj{}
+if applyDefaultsFlag {
+obj.ApplyDefaults()
+}
+return obj
+}
+
+func (obj *ConfigObj) markOrigin(pathText string, originObj fieldOriginObj) {
+if obj.originMap == nil {
+obj.originMap = make(map[string]fieldOriginObj)
+}
+obj.originMap[pathText] = originObj
+}
+
+func (obj *ConfigObj) canApplyOrigin(pathText string, originObj fieldOriginObj) bool {
+if obj.originMap == nil {
+return true
+}
+currentObj, existsFlag := obj.originMap[pathText]
+return !existsFlag || currentObj <= originObj
+}
+
+func (obj *ConfigObj) originOf(pathText string) (fieldOriginObj, bool) {
+if obj == nil || obj.originMap == nil {
+return 0, false
+}
+originObj, existsFlag := obj.originMap[pathText]
+return originObj, existsFlag
+}
+
+func (obj *ConfigObj) HasPath(pathText string) bool {
+return obj.hasPath(pathText)
+}
+
+func (obj *ConfigObj) hasPath(pathText string) bool {
+originObj, existsFlag := obj.originOf(pathText)
+return existsFlag && originObj >= fieldOriginFile
+}
+
+func (obj *ConfigObj) mergeFrom(otherObj *ConfigObj) {
+if obj == nil || otherObj == nil {
+return
+}
+{{- range .FieldObjArr }}
+    if originObj, existsFlag := otherObj.originOf({{ quote .PathText }}); existsFlag && originObj >= fieldOriginFile {
+    obj.{{ setterName . }}(otherObj.{{ .AccessorText }}, originObj)
+    }
+{{- end }}
+}
+
+func (obj *ConfigObj) ApplyDefaults() {
+if obj == nil {
+return
+}
+{{- range .FieldObjArr }}
+obj.{{ setterName . }}({{ .DefaultCodeText }}, fieldOriginDefault)
+{{- end }}
+}
+
+// // // // // // // // // //
+
+{{ range .FieldObjArr }}
+func (obj *ConfigObj) {{ setterName . }}(valueObj {{ .GoTypeText }}, originObj fieldOriginObj) {
+if !obj.canApplyOrigin({{ quote .PathText }}, originObj) {
+return
+}
+obj.{{ .AccessorText }} = valueObj
+obj.markOrigin({{ quote .PathText }}, originObj)
+}
+{{ end }}

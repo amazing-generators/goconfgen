@@ -1,0 +1,108 @@
+package {{ .PackageName }}
+
+import (
+"bytes"
+"strings"
+
+"gopkg.in/yaml.v3"
+)
+
+// // // // // // // // // //
+
+func (obj *ConfigObj) RenderYAML(partialFlag bool) ([]byte, error) {
+rootNodeObj := &yaml.Node{Kind: yaml.MappingNode}
+includeFlag, err := appendYAMLConfigObj(rootNodeObj, obj, partialFlag)
+if err != nil {
+return nil, err
+}
+if !includeFlag {
+return []byte("{}\n"), nil
+}
+return encodeYAMLNode(rootNodeObj)
+}
+
+{{ template "appendYAMLBranch" .RootObj }}
+
+{{ define "appendYAMLBranch" }}
+    func appendYAML{{ .TypeNameText }}(targetNodeObj *yaml.Node, obj *ConfigObj, partialFlag bool) (bool, error) {
+    includeFlag := false
+    {{- range .EntryObjArr }}
+        {{- if .BranchObj }}
+            {
+            childNodeObj := &yaml.Node{Kind: yaml.MappingNode}
+            childIncludeFlag, err := appendYAML{{ .BranchObj.TypeNameText }}(childNodeObj, obj, partialFlag)
+            if err != nil {
+            return false, err
+            }
+            if childIncludeFlag || !partialFlag {
+            keyNodeObj := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: {{ quote .BranchObj.KeyText }}}
+            attachUsageComment(keyNodeObj, childNodeObj, {{ quote .BranchObj.UsageText }})
+            targetNodeObj.Content = append(targetNodeObj.Content, keyNodeObj, childNodeObj)
+            includeFlag = true
+            }
+            }
+        {{- else if .FieldObj }}
+            {
+            if !partialFlag || obj.hasPath({{ quote .FieldObj.PathText }}) {
+            valueObj, err := renderValue{{ goName .FieldObj.PathText }}(obj)
+            if err != nil {
+            return false, err
+            }
+            valueNodeObj, err := marshalYAMLNode(valueObj)
+            if err != nil {
+            return false, err
+            }
+            keyNodeObj := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: {{ quote .FieldObj.KeyText }}}
+            attachUsageComment(keyNodeObj, valueNodeObj, {{ quote .FieldObj.UsageText }})
+            targetNodeObj.Content = append(targetNodeObj.Content, keyNodeObj, valueNodeObj)
+            includeFlag = true
+            }
+            }
+        {{- end }}
+    {{- end }}
+    return includeFlag, nil
+    }
+
+    {{- range .BranchObjArr }}
+        {{ template "appendYAMLBranch" . }}
+    {{- end }}
+{{ end }}
+
+func marshalYAMLNode(valueObj any) (*yaml.Node, error) {
+dataArr, err := yaml.Marshal(valueObj)
+if err != nil {
+return nil, err
+}
+var docNodeObj yaml.Node
+if err = yaml.Unmarshal(dataArr, &docNodeObj); err != nil {
+return nil, err
+}
+if len(docNodeObj.Content) == 0 {
+return &yaml.Node{}, nil
+}
+return docNodeObj.Content[0], nil
+}
+
+func encodeYAMLNode(rootNodeObj *yaml.Node) ([]byte, error) {
+var bufferObj bytes.Buffer
+encoderObj := yaml.NewEncoder(&bufferObj)
+encoderObj.SetIndent(2)
+if err := encoderObj.Encode(rootNodeObj); err != nil {
+return nil, err
+}
+if err := encoderObj.Close(); err != nil {
+return nil, err
+}
+return bufferObj.Bytes(), nil
+}
+
+func attachUsageComment(keyNodeObj *yaml.Node, valueNodeObj *yaml.Node, usageText string) {
+if usageText == "" {
+return
+}
+if valueNodeObj.Kind == yaml.ScalarNode && !strings.Contains(usageText, "\n") {
+valueNodeObj.LineComment = usageText
+return
+}
+keyNodeObj.HeadComment = usageText
+}

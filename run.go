@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/amazing-generators/goconfgen/internal/codegen"
-	"github.com/amazing-generators/goconfgen/internal/ir"
+	"github.com/amazing-generators/goconfgen/internal/emit"
+	"github.com/amazing-generators/goconfgen/internal/semantic"
 	"github.com/amazing-generators/goconfgen/internal/source"
 )
 
@@ -19,25 +19,27 @@ func Run(config ConfigObj) (*ResultObj, error) {
 	}
 
 	sourceObj, err := source.Load(source.ConfigObj{
-		SchemaPath:  normalizedConfig.IRConfig.SchemaPath,
-		MinimalPath: normalizedConfig.IRConfig.MinimalPath,
-		MediumPath:  normalizedConfig.IRConfig.MediumPath,
+		SchemaPath:    normalizedConfig.SemanticConfig.SchemaPath,
+		MinimalPath:   normalizedConfig.SemanticConfig.MinimalPath,
+		MediumPath:    normalizedConfig.SemanticConfig.MediumPath,
+		PresetPathMap: normalizedConfig.SemanticConfig.PresetPathMap,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	irConfig := normalizedConfig.IRConfig
-	irConfig.SchemaText = sourceObj.SchemaText
-	irConfig.MinimalText = sourceObj.MinimalText
-	irConfig.MediumText = sourceObj.MediumText
+	semanticConfig := normalizedConfig.SemanticConfig
+	semanticConfig.SchemaText = sourceObj.SchemaText
+	semanticConfig.MinimalText = sourceObj.MinimalText
+	semanticConfig.MediumText = sourceObj.MediumText
+	semanticConfig.PresetTextMap = sourceObj.PresetTextMap
 
-	packageObj, err := ir.Build(irConfig)
+	packageObj, err := semantic.Build(semanticConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	fileObjArr, err := codegen.Build(packageObj)
+	fileObjArr, err := emit.Build(packageObj)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +52,7 @@ func Run(config ConfigObj) (*ResultObj, error) {
 	for _, fileObj := range fileObjArr {
 		keepNameMap[fileObj.RelativePath] = struct{}{}
 	}
-	if err = cleanupStaleGeneratedFiles(normalizedConfig.OutputDir, keepNameMap, codegen.KnownGeneratedFileNameArr(), normalizedConfig.Force); err != nil {
+	if err = cleanupStaleGeneratedFiles(normalizedConfig.OutputDir, keepNameMap, emit.KnownGeneratedFileNameArr(), normalizedConfig.Force); err != nil {
 		return nil, err
 	}
 
@@ -66,12 +68,21 @@ func Run(config ConfigObj) (*ResultObj, error) {
 	}
 
 	sort.Strings(generatedFilePathArr)
+	presetPathMap := make(map[string]string, len(normalizedConfig.SemanticConfig.PresetPathMap)+2)
+	if normalizedConfig.SemanticConfig.MinimalPath != "" {
+		presetPathMap["minimal"] = normalizedConfig.SemanticConfig.MinimalPath
+	}
+	if normalizedConfig.SemanticConfig.MediumPath != "" {
+		presetPathMap["medium"] = normalizedConfig.SemanticConfig.MediumPath
+	}
+	for nameText, pathText := range normalizedConfig.SemanticConfig.PresetPathMap {
+		presetPathMap[nameText] = pathText
+	}
 
 	return &ResultObj{
-		OutputDir:            normalizedConfig.OutputDir,
-		GeneratedFilePathArr: generatedFilePathArr,
-		ResolvedSchemaPath:   normalizedConfig.IRConfig.SchemaPath,
-		ResolvedMinimalPath:  normalizedConfig.IRConfig.MinimalPath,
-		ResolvedMediumPath:   normalizedConfig.IRConfig.MediumPath,
+		OutputDir:             normalizedConfig.OutputDir,
+		GeneratedFilePathArr:  generatedFilePathArr,
+		ResolvedSourcePath:    normalizedConfig.SemanticConfig.SchemaPath,
+		ResolvedPresetPathMap: presetPathMap,
 	}, nil
 }

@@ -1,0 +1,75 @@
+package {{ .PackageName }}
+
+import (
+"fmt"
+"os"
+"path/filepath"
+"strings"
+)
+
+// // // // // // // // // //
+
+func ParseFile(pathText string) (*ConfigObj, error) {
+dataArr, err := os.ReadFile(pathText)
+if err != nil {
+return nil, fmt.Errorf("read config file: %w", err)
+}
+_ = dataArr
+switch strings.ToLower(filepath.Ext(pathText)) {
+{{- if .HasYAML }}
+    case ".yaml", ".yml":
+    return parseYAMLBytes(dataArr, true)
+{{- end }}
+{{- if .HasJSON }}
+    case ".json":
+    return parseJSONBytes(dataArr, true)
+{{- end }}
+{{- if .HasHJSON }}
+    case ".hjson":
+    return parseHJSONBytes(dataArr, true)
+{{- end }}
+default:
+return nil, fmt.Errorf("unsupported config file extension: %s", filepath.Ext(pathText))
+}
+}
+
+func LoadConfig(filePathText string, argsArr []string) (*ConfigObj, error) {
+if argsArr == nil {
+return nil, fmt.Errorf("argsArr must not be nil; pass empty slice if no CLI args")
+}
+obj := newConfigWithDefaults(true)
+if filePathText != "" {
+fileObj, err := ParseFile(filePathText)
+if err != nil {
+return nil, err
+}
+obj.mergeFrom(fileObj)
+}
+{{- if .HasCLI }}
+    if err := applyCLIArgs(obj, argsArr); err != nil {
+    return nil, err
+    }
+{{- else }}
+    if len(argsArr) > 0 {
+    return nil, fmt.Errorf("CLI parsing is not generated; pass empty argsArr")
+    }
+{{- end }}
+{{- if .HasValidate }}
+    if err := obj.Validate(); err != nil {
+    return nil, err
+}
+{{- end }}
+return obj, nil
+}
+
+func parsePrimaryBytes(dataArr []byte, applyDefaultsFlag bool) (*ConfigObj, error) {
+{{- if .HasYAML }}
+    return parseYAMLBytes(dataArr, applyDefaultsFlag)
+{{- else if .HasJSON }}
+    return parseJSONBytes(dataArr, applyDefaultsFlag)
+{{- else if .HasHJSON }}
+    return parseHJSONBytes(dataArr, applyDefaultsFlag)
+{{- else }}
+    return nil, fmt.Errorf("no parse format is enabled in generated package")
+{{- end }}
+}

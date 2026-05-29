@@ -36,7 +36,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: src-gen
-          path: .
+          path: |
+            .
+            !.git/**
+            !.idea/**
+            !tmp/**
+            !dist/**
+            !build_env.txt
 
   test:
     name: "Test [${{ matrix.os }}]"

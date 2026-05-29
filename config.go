@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/amazing-generators/goconfgen/internal/ir"
+	"github.com/amazing-generators/goconfgen/internal/semantic"
 )
 
 // // // // // // // // // //
@@ -22,88 +22,114 @@ const (
 // //
 
 type ConfigObj struct {
-	SchemaPath     string
-	SourceDir      string
-	MinimalPath    string
-	MediumPath     string
-	OutputDir      string
-	PackageName    string
-	Formats        []string
-	WithCLI        *bool
-	WithValidate   *bool
-	WithRender     *bool
-	WithPresets    *bool
-	WithInterfaces *bool
-	Force          bool
+	Schema      string
+	SourceDir   string
+	OutputDir   string
+	PackageName string
+	Formats     []string
+	Presets     map[string]string
+	Features    FeaturesObj
+	Force       bool
+}
+
+type FeaturesObj struct {
+	CLI        *bool
+	Validate   *bool
+	Render     *bool
+	Presets    *bool
+	Interfaces *bool
 }
 
 type ResultObj struct {
-	OutputDir            string
-	GeneratedFilePathArr []string
-	ResolvedSchemaPath   string
-	ResolvedMinimalPath  string
-	ResolvedMediumPath   string
+	OutputDir             string
+	GeneratedFilePathArr  []string
+	ResolvedSourcePath    string
+	ResolvedPresetPathMap map[string]string
 }
 
 type normalizedConfigObj struct {
-	IRConfig  ir.ConfigObj
-	OutputDir string
-	Force     bool
+	SemanticConfig semantic.ConfigObj
+	OutputDir      string
+	Force          bool
 }
 
 // //
 
 func normalizeConfig(config ConfigObj) (*normalizedConfigObj, error) {
-	sourceDir, err := resolveSourceDir(config.SourceDir, config.SchemaPath, config.MinimalPath, config.MediumPath)
+	sourceDir, err := resolveSourceDir(config.SourceDir, config.Schema, config.Presets)
 	if err != nil {
 		return nil, err
 	}
 
-	schemaPath, err := resolveRequiredFile(config.SchemaPath, sourceDir, cDefaultSchemaFile, "schema")
+	schemaPath, err := resolveRequiredFile(config.Schema, sourceDir, cDefaultSchemaFile, "schema")
 	if err != nil {
 		return nil, err
 	}
-	schemaLabel := buildInputDisplayPath(config.SchemaPath, config.SourceDir, schemaPath, cDefaultSchemaFile)
+	schemaLabel := buildInputDisplayPath(config.Schema, config.SourceDir, schemaPath, cDefaultSchemaFile)
 
 	outputDir, err := resolveOutputDir(config.OutputDir)
 	if err != nil {
 		return nil, err
 	}
 
-	formatTextArr, hasYAMLFlag, hasJSONFlag, hasHJSONFlag, cliOnlyFlag, err := normalizeFormats(config.Formats)
+	formatTextArr, hasYAMLFlag, hasJSONFlag, hasHJSONFlag, err := normalizeFormats(config.Formats)
 	if err != nil {
 		return nil, err
 	}
-	hasCLIFlag := normalizeBool(config.WithCLI, true)
-	hasValidateFlag := normalizeBool(config.WithValidate, true)
-	hasRenderFlag := normalizeBool(config.WithRender, true)
-	hasPresetsFlag := normalizeBool(config.WithPresets, true)
-	hasInterfacesFlag := normalizeBool(config.WithInterfaces, true)
-
-	if cliOnlyFlag {
-		if config.WithCLI != nil && !hasCLIFlag {
-			return nil, fmt.Errorf("cli-only mode requires cli generation")
-		}
-		hasCLIFlag = true
-		hasRenderFlag = false
-		hasPresetsFlag = false
-	}
+	hasCLIFlag := normalizeBool(config.Features.CLI, true)
+	hasValidateFlag := normalizeBool(config.Features.Validate, true)
+	hasRenderFlag := normalizeBool(config.Features.Render, true)
+	hasPresetsFlag := normalizeBool(config.Features.Presets, true)
+	hasInterfacesFlag := normalizeBool(config.Features.Interfaces, true)
 
 	minimalPath := ""
 	minimalFound := false
 	mediumPath := ""
 	mediumFound := false
+	presetPathMap := map[string]string{}
 	if hasPresetsFlag {
-		minimalPath, minimalFound, err = resolveOptionalFile(config.MinimalPath, sourceDir, cDefaultMinimalFile, "minimal preset")
+		if err = collectExplicitPresetPaths(config.Presets, presetPathMap); err != nil {
+			return nil, err
+		}
+
+		if explicitPath, existsFlag := presetPathMap["minimal"]; existsFlag {
+			minimalPath, err = absExistingFile(explicitPath, "minimal preset")
+			if err != nil {
+				return nil, err
+			}
+			minimalFound = true
+			delete(presetPathMap, "minimal")
+			if autoPath, autoFlag, autoErr := resolveOptionalFile("", sourceDir, cDefaultMinimalFile, "minimal preset"); autoErr != nil {
+				return nil, autoErr
+			} else if autoFlag && autoPath != "" {
+				return nil, fmt.Errorf("preset name [minimal] is specified both explicitly and via source directory autodetection")
+			}
+		} else {
+			minimalPath, minimalFound, err = resolveOptionalFile("", sourceDir, cDefaultMinimalFile, "minimal preset")
+		}
 		if err != nil {
 			return nil, err
 		}
 
-		mediumPath, mediumFound, err = resolveOptionalFile(config.MediumPath, sourceDir, cDefaultMediumFile, "medium preset")
+		if explicitPath, existsFlag := presetPathMap["medium"]; existsFlag {
+			mediumPath, err = absExistingFile(explicitPath, "medium preset")
+			if err != nil {
+				return nil, err
+			}
+			mediumFound = true
+			delete(presetPathMap, "medium")
+			if autoPath, autoFlag, autoErr := resolveOptionalFile("", sourceDir, cDefaultMediumFile, "medium preset"); autoErr != nil {
+				return nil, autoErr
+			} else if autoFlag && autoPath != "" {
+				return nil, fmt.Errorf("preset name [medium] is specified both explicitly and via source directory autodetection")
+			}
+		} else {
+			mediumPath, mediumFound, err = resolveOptionalFile("", sourceDir, cDefaultMediumFile, "medium preset")
+		}
 		if err != nil {
 			return nil, err
 		}
-	} else if strings.TrimSpace(config.MinimalPath) != "" || strings.TrimSpace(config.MediumPath) != "" {
+	} else if len(config.Presets) > 0 {
 		return nil, fmt.Errorf("presets are disabled")
 	}
 
@@ -116,11 +142,12 @@ func normalizeConfig(config ConfigObj) (*normalizedConfigObj, error) {
 	}
 
 	return &normalizedConfigObj{
-		IRConfig: ir.ConfigObj{
+		SemanticConfig: semantic.ConfigObj{
 			SchemaPath:     schemaPath,
 			SchemaLabel:    schemaLabel,
 			MinimalPath:    minimalPath,
 			MediumPath:     mediumPath,
+			PresetPathMap:  presetPathMap,
 			PackageName:    packageName,
 			Formats:        formatTextArr,
 			HasYAML:        hasYAMLFlag,
@@ -139,9 +166,9 @@ func normalizeConfig(config ConfigObj) (*normalizedConfigObj, error) {
 	}, nil
 }
 
-func normalizeFormats(formatTextArr []string) ([]string, bool, bool, bool, bool, error) {
+func normalizeFormats(formatTextArr []string) ([]string, bool, bool, bool, error) {
 	if len(formatTextArr) == 0 {
-		return []string{"yaml", "json", "hjson"}, true, true, true, false, nil
+		return nil, false, false, false, fmt.Errorf("formats must not be empty")
 	}
 
 	seenFormatMap := make(map[string]struct{}, len(formatTextArr))
@@ -150,9 +177,9 @@ func normalizeFormats(formatTextArr []string) ([]string, bool, bool, bool, bool,
 	for _, formatText := range formatTextArr {
 		formatText = strings.TrimSpace(strings.ToLower(formatText))
 		switch formatText {
-		case "yaml", "json", "hjson", "cli":
+		case "yaml", "json", "hjson":
 		default:
-			return nil, false, false, false, false, fmt.Errorf("unsupported format: %s", formatText)
+			return nil, false, false, false, fmt.Errorf("unsupported format: %s", formatText)
 		}
 
 		if _, existsFlag := seenFormatMap[formatText]; existsFlag {
@@ -164,17 +191,10 @@ func normalizeFormats(formatTextArr []string) ([]string, bool, bool, bool, bool,
 	}
 
 	if len(resultArr) == 0 {
-		return nil, false, false, false, false, fmt.Errorf("no formats are enabled")
+		return nil, false, false, false, fmt.Errorf("no formats are enabled")
 	}
 
-	if containsTextObj(resultArr, "cli") {
-		if len(resultArr) != 1 {
-			return nil, false, false, false, false, fmt.Errorf("cli format cannot be mixed with file formats")
-		}
-		return resultArr, false, false, false, true, nil
-	}
-
-	return resultArr, containsTextObj(resultArr, "yaml"), containsTextObj(resultArr, "json"), containsTextObj(resultArr, "hjson"), false, nil
+	return resultArr, containsTextObj(resultArr, "yaml"), containsTextObj(resultArr, "json"), containsTextObj(resultArr, "hjson"), nil
 }
 
 func normalizeBool(valueFlag *bool, defaultFlag bool) bool {
@@ -185,12 +205,43 @@ func normalizeBool(valueFlag *bool, defaultFlag bool) bool {
 	return *valueFlag
 }
 
-func resolveSourceDir(sourceDir string, schemaPath string, minimalPath string, mediumPath string) (string, error) {
+func collectExplicitPresetPaths(presetPathByNameMap map[string]string, targetMap map[string]string) error {
+	for nameText, pathText := range presetPathByNameMap {
+		nameText = strings.TrimSpace(strings.ToLower(nameText))
+		pathText = strings.TrimSpace(pathText)
+		if nameText == "" {
+			return fmt.Errorf("preset name must not be empty")
+		}
+		if nameText == "full" {
+			return fmt.Errorf("preset name [full] is reserved for the schema-defaults preset")
+		}
+		if pathText == "" {
+			return fmt.Errorf("preset [%s] path must not be empty", nameText)
+		}
+		if _, existsFlag := targetMap[nameText]; existsFlag {
+			return fmt.Errorf("preset name [%s] is duplicated", nameText)
+		}
+		targetMap[nameText] = pathText
+	}
+	return nil
+}
+
+func resolveSourceDir(sourceDir string, schemaPath string, presetPathMap map[string]string) (string, error) {
 	if strings.TrimSpace(sourceDir) != "" {
 		return absDir(sourceDir, "source directory")
 	}
 
-	for _, pathValue := range []string{schemaPath, minimalPath, mediumPath} {
+	schemaPath = strings.TrimSpace(schemaPath)
+	if schemaPath != "" {
+		absPath, err := filepath.Abs(schemaPath)
+		if err != nil {
+			return "", fmt.Errorf("resolve input path: %w", err)
+		}
+
+		return filepath.Dir(absPath), nil
+	}
+
+	for _, pathValue := range presetPathMap {
 		pathValue = strings.TrimSpace(pathValue)
 		if pathValue == "" {
 			continue

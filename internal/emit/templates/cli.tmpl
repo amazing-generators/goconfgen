@@ -1,0 +1,218 @@
+package {{ .PackageName }}
+
+import (
+"flag"
+"fmt"
+"strconv"
+"strings"
+"time"
+)
+
+// // // // // // // // // //
+
+var _ = strconv.IntSize
+var _ = time.Duration(0)
+var _ = fmt.Errorf
+var _ = strings.TrimSpace
+
+type cliFlagsObj struct {
+{{- range .FieldObjArr }}
+    {{ flagVarName . }} runtimeFlagInterface
+{{- end }}
+}
+
+func newCLIFlags() *cliFlagsObj {
+return &cliFlagsObj{
+{{- range .FieldObjArr }}
+    {{ flagVarName . }}: {{ flagCtorExpr . }},
+{{- end }}
+}
+}
+
+func (obj *cliFlagsObj) registerFlags(flagSet *flag.FlagSet) {
+{{- range .FieldObjArr }}
+    flagSet.Var(obj.{{ flagVarName . }}, {{ quote .PathText }}, {{ quote (singleLineUsage .UsageText) }})
+{{- end }}
+}
+
+func (obj *cliFlagsObj) applyFlags(cfgObj *ConfigObj) error {
+{{- range .FieldObjArr }}
+    if obj.{{ flagVarName . }}.IsSeen() {
+    valueText := obj.{{ flagVarName . }}.Text()
+    {{ template "fieldCLIFlagAssign" . }}
+    }
+{{- end }}
+{{- if .HasValidate }}
+    if err := cfgObj.Validate(); err != nil {
+    return err
+    }
+{{- end }}
+return nil
+}
+
+func applyCLIArgs(cfgObj *ConfigObj, argsArr []string) error {
+flagSet := flag.NewFlagSet("generated", flag.ContinueOnError)
+flagsObj := newCLIFlags()
+flagsObj.registerFlags(flagSet)
+if err := flagSet.Parse(argsArr); err != nil {
+return err
+}
+return flagsObj.applyFlags(cfgObj)
+}
+
+func ApplyCLI(obj *ConfigObj, argsArr []string) error {
+if argsArr == nil {
+return fmt.Errorf("argsArr must not be nil; pass empty slice if no CLI args")
+}
+return applyCLIArgs(obj, argsArr)
+}
+
+{{- define "fieldCLIFlagAssign" -}}
+    {{- if and (eq .TypeObj.SchemaText "bool") (eq (printf "%s" .TypeObj.Family) "scalar") }}
+        parsedValue, err := strconv.ParseBool(strings.TrimSpace(valueText))
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}(parsedValue, fieldOriginCLI)
+    {{- else if and .TypeObj.IsEnum (eq (printf "%s" .TypeObj.Family) "scalar") }}
+        parsedValue, err := Parse{{ .EnumObj.TypeName }}(strings.TrimSpace(valueText))
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}(parsedValue, fieldOriginCLI)
+    {{- else if and .TypeObj.IsDuration (eq (printf "%s" .TypeObj.Family) "scalar") }}
+        parsedValue, err := time.ParseDuration(strings.TrimSpace(valueText))
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}(parsedValue, fieldOriginCLI)
+    {{- else if and .TypeObj.IsSize (eq (printf "%s" .TypeObj.Family) "scalar") }}
+        parsedValue, err := parseSize(strings.TrimSpace(valueText))
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}(SizeObj(parsedValue), fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "scalar") (eq .TypeObj.SchemaText "string") }}
+        cfgObj.{{ setterName . }}(valueText, fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "scalar") (or (eq .TypeObj.SchemaText "int") (eq .TypeObj.SchemaText "int8") (eq .TypeObj.SchemaText "int16") (eq .TypeObj.SchemaText "int32") (eq .TypeObj.SchemaText "int64")) }}
+        parsedValue, err := strconv.ParseInt(strings.TrimSpace(valueText), 10, {{ bitSizeLiteral . }})
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}({{ .GoTypeText }}(parsedValue), fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "scalar") (or (eq .TypeObj.SchemaText "uint") (eq .TypeObj.SchemaText "uint8") (eq .TypeObj.SchemaText "uint16") (eq .TypeObj.SchemaText "uint32") (eq .TypeObj.SchemaText "uint64")) }}
+        parsedValue, err := strconv.ParseUint(strings.TrimSpace(valueText), 10, {{ bitSizeLiteral . }})
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}({{ .GoTypeText }}(parsedValue), fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "scalar") (or (eq .TypeObj.SchemaText "float") (eq .TypeObj.SchemaText "float32") (eq .TypeObj.SchemaText "float64")) }}
+        parsedValue, err := strconv.ParseFloat(strings.TrimSpace(valueText), {{ bitSizeLiteral . }})
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}({{ .GoTypeText }}(parsedValue), fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") .TypeObj.IsEnum }}
+        itemTextArr := parseCSV(valueText)
+        parsedArr := make({{ .GoTypeText }}, 0, len(itemTextArr))
+        for _, itemText := range itemTextArr {
+        parsedValue, err := Parse{{ .EnumObj.TypeName }}(strings.TrimSpace(itemText))
+        if err != nil {
+        return err
+        }
+        parsedArr = append(parsedArr, parsedValue)
+        }
+        cfgObj.{{ setterName . }}(parsedArr, fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") (eq .TypeObj.ElemSchemaText "string") }}
+        cfgObj.{{ setterName . }}(parseCSV(valueText), fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") (eq .TypeObj.ElemSchemaText "bool") }}
+        itemTextArr := parseCSV(valueText)
+        parsedArr := make([]bool, 0, len(itemTextArr))
+        for _, itemText := range itemTextArr {
+        parsedValue, err := strconv.ParseBool(strings.TrimSpace(itemText))
+        if err != nil {
+        return err
+        }
+        parsedArr = append(parsedArr, parsedValue)
+        }
+        cfgObj.{{ setterName . }}(parsedArr, fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") (or (eq .TypeObj.ElemSchemaText "int") (eq .TypeObj.ElemSchemaText "int8") (eq .TypeObj.ElemSchemaText "int16") (eq .TypeObj.ElemSchemaText "int32") (eq .TypeObj.ElemSchemaText "int64")) }}
+        itemTextArr := parseCSV(valueText)
+        parsedArr := make({{ .GoTypeText }}, 0, len(itemTextArr))
+        for _, itemText := range itemTextArr {
+        parsedValue, err := strconv.ParseInt(strings.TrimSpace(itemText), 10, {{ bitSizeLiteral . }})
+        if err != nil {
+        return err
+        }
+        parsedArr = append(parsedArr, {{ elemGoType . }}(parsedValue))
+        }
+        cfgObj.{{ setterName . }}(parsedArr, fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") (or (eq .TypeObj.ElemSchemaText "uint") (eq .TypeObj.ElemSchemaText "uint8") (eq .TypeObj.ElemSchemaText "uint16") (eq .TypeObj.ElemSchemaText "uint32") (eq .TypeObj.ElemSchemaText "uint64")) }}
+        itemTextArr := parseCSV(valueText)
+        parsedArr := make({{ .GoTypeText }}, 0, len(itemTextArr))
+        for _, itemText := range itemTextArr {
+        parsedValue, err := strconv.ParseUint(strings.TrimSpace(itemText), 10, {{ bitSizeLiteral . }})
+        if err != nil {
+        return err
+        }
+        parsedArr = append(parsedArr, {{ elemGoType . }}(parsedValue))
+        }
+        cfgObj.{{ setterName . }}(parsedArr, fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") (or (eq .TypeObj.ElemSchemaText "float") (eq .TypeObj.ElemSchemaText "float32") (eq .TypeObj.ElemSchemaText "float64")) }}
+        itemTextArr := parseCSV(valueText)
+        parsedArr := make({{ .GoTypeText }}, 0, len(itemTextArr))
+        for _, itemText := range itemTextArr {
+        parsedValue, err := strconv.ParseFloat(strings.TrimSpace(itemText), {{ bitSizeLiteral . }})
+        if err != nil {
+        return err
+        }
+        parsedArr = append(parsedArr, {{ elemGoType . }}(parsedValue))
+        }
+        cfgObj.{{ setterName . }}(parsedArr, fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") (or (eq .TypeObj.ElemSchemaText "duration") (eq .TypeObj.ElemSchemaText "time.Duration")) }}
+        itemTextArr := parseCSV(valueText)
+        parsedArr := make([]time.Duration, 0, len(itemTextArr))
+        for _, itemText := range itemTextArr {
+        parsedValue, err := time.ParseDuration(strings.TrimSpace(itemText))
+        if err != nil {
+        return err
+        }
+        parsedArr = append(parsedArr, parsedValue)
+        }
+        cfgObj.{{ setterName . }}(parsedArr, fieldOriginCLI)
+    {{- else if and (eq (printf "%s" .TypeObj.Family) "array") (eq .TypeObj.ElemSchemaText "size") }}
+        itemTextArr := parseCSV(valueText)
+        parsedArr := make([]SizeObj, 0, len(itemTextArr))
+        for _, itemText := range itemTextArr {
+        parsedValue, err := parseSize(strings.TrimSpace(itemText))
+        if err != nil {
+        return err
+        }
+        parsedArr = append(parsedArr, SizeObj(parsedValue))
+        }
+        cfgObj.{{ setterName . }}(parsedArr, fieldOriginCLI)
+    {{- else if eq .TypeObj.SchemaText "map[string]string" }}
+        parsedMap, err := parseStringMapShorthand(valueText)
+        if err != nil {
+        parsedMap, err = parseJSONStringMap[map[string]string](valueText)
+        if err != nil {
+        return err
+        }
+        }
+        cfgObj.{{ setterName . }}(parsedMap, fieldOriginCLI)
+    {{- else if eq .TypeObj.SchemaText "map[string][]string" }}
+        parsedMap, err := parseJSONStringMap[map[string][]string](valueText)
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}(parsedMap, fieldOriginCLI)
+    {{- else if eq .TypeObj.SchemaText "map[string]any" }}
+        parsedMap, err := parseJSONStringMap[map[string]any](valueText)
+        if err != nil {
+        return err
+        }
+        cfgObj.{{ setterName . }}(parsedMap, fieldOriginCLI)
+    {{- else }}
+        return fmt.Errorf("unsupported cli flag field: {{ .PathText }}")
+    {{- end }}
+{{- end -}}

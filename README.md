@@ -1,73 +1,107 @@
 # goconfgen
 
-`goconfgen` is a standalone Go config generator.
+`goconfgen` is a standalone Go configuration package generator.
 
-It reads a declarative YAML schema and generates a reusable Go config package with:
+It reads a declarative YAML schema and emits a reusable Go package with typed
+configuration structs, defaults, parsers, renderers, CLI override helpers,
+validation, generated enums, optional branch interfaces, and embedded presets.
 
-- typed config structs
-- optional generated interfaces for selected branches
-- inline enum types with parse and validation helpers
-- defaults application
-- YAML / JSON / HJSON parsing
-- CLI flag registration and apply logic
-- runtime validation
-- YAML / JSON / HJSON rendering
-- built-in `full`, `minimal`, and `medium` presets
-
-The project is intentionally shaped as a reusable generator library with a thin CLI wrapper, not as a repo-local script
-tied to one application.
+The generated result is a Go package, not a serialized artifact. Applications
+import the generated package directly and stop depending on `goconfgen` at
+runtime.
 
 ## What It Generates
 
-The generator outputs a directory with several responsibility-split Go files.
+For one schema, `goconfgen` produces a directory of Go files:
 
-For the example schema
-in [examples/complex/source](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/source), the generated
-result is checked in
-at [examples/complex/target](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target).
+| File               | Responsibility                                                                                    |
+|--------------------|---------------------------------------------------------------------------------------------------|
+| `types_gen.go`     | `ConfigObj`, nested branch structs, generated interfaces, custom scalar helpers such as `SizeObj` |
+| `accessors_gen.go` | `New`, `ApplyDefaults`, origin tracking, merge helpers, generated setters                         |
+| `enums_gen.go`     | enum types, constants, parsers, text/json marshal helpers                                         |
+| `helpers_gen.go`   | shared runtime helpers used by parsers, renderers, CLI, duplicate-key checks, scalar conversion   |
+| `parse_yaml.go`    | YAML parser when YAML format is enabled                                                           |
+| `parse_json.go`    | JSON parser when JSON format is enabled                                                           |
+| `parse_hjson.go`   | HJSON parser when HJSON format is enabled                                                         |
+| `render_yaml.go`   | YAML renderer when YAML + render are enabled                                                      |
+| `render_json.go`   | JSON renderer when JSON + render are enabled                                                      |
+| `render_hjson.go`  | HJSON renderer when HJSON + render are enabled                                                    |
+| `cli.go`           | CLI flag registration and `ApplyCLI` when CLI is enabled                                          |
+| `validate.go`      | `Validate` when validation is enabled                                                             |
+| `presets.go`       | embedded preset bytes and preset constructors when presets are enabled                            |
+| `entrypoint.go`    | `ParseFile`, `LoadConfig`, primary parser selection                                               |
 
-Current generated files:
+The checked-in example source is in
+[examples/source](examples/source), and the generated reference package is in
+[examples/complex/target](examples/complex/target).
 
-- `types_gen.go`: config structs, branch interfaces, custom scalar helpers like `SizeObj`
-- `accessors_gen.go`: defaults application, presence tracking, field getters/setters
-- `enums_gen.go`: enum types, constants, parse functions, string helpers
-- `schema_gen.go`: static schema tree used by parser and renderer
-- `parse_gen.go`: `ParseFile`, `ParseYAML`, `ParseJSON`, `ParseHJSON`
-- `flags_gen.go`: CLI flags, `ApplyFlags`, help/defaults text
-- `validate_gen.go`: generated runtime validation
-- `render_gen.go`: YAML / JSON / HJSON rendering and save helpers
-- `presets_gen.go`: embedded presets and preset accessors
+## Generator Pipeline
 
-The output is a Go package, not a serialized artifact dump. You import and use the generated code in another project.
-
-## Generator Flow
-
-At a high level, `goconfgen` does four things:
-
-1. loads schema and optional preset sources
-2. parses and validates them into a strict semantic model
-3. generates multiple Go files from templates
-4. writes the generated package to the target directory
+The generator is split into four main stages:
 
 ```mermaid
 flowchart TD
-  A["config.yml<br/>minimal.yml<br/>medium.yml"] --> B["source.Load"]
-  B --> C["schema.Parse<br/>strict schema tree"]
-  C --> D["ir.Build<br/>normalized semantic model"]
-  D --> E["codegen.Build<br/>template rendering"]
-  E --> F["writeFileAtomically"]
-  F --> G["generated Go package"]
+    A["ConfigObj / CLI flags"] --> B["normalizeConfig"]
+    B --> C["source.Load"]
+    C --> D["schema.Parse"]
+    D --> E["semantic.Build"]
+    E --> F["emit.Build"]
+    F --> G["prepareOutputDir"]
+    G --> H["cleanupStaleGeneratedFiles"]
+    H --> I["writeFileAtomically"]
+    I --> J["generated Go package"]
 ```
 
-More concretely:
+Stage responsibilities:
 
-- [run.go](/mnt/w541-data/shared/GolandProjects/goconfgen/run.go:1) is the public generator entrypoint
-- [internal/source](/mnt/w541-data/shared/GolandProjects/goconfgen/internal/source) resolves and loads input files
-- [internal/schema](/mnt/w541-data/shared/GolandProjects/goconfgen/internal/schema) parses and validates the schema
-- [internal/ir](/mnt/w541-data/shared/GolandProjects/goconfgen/internal/ir) builds the normalized package model and
-  rendered presets
-- [internal/codegen](/mnt/w541-data/shared/GolandProjects/goconfgen/internal/codegen) renders `*_gen.go` files from
-  templates in [internal/codegen/templates](/mnt/w541-data/shared/GolandProjects/goconfgen/internal/codegen/templates)
+| Stage                | Code                | Responsibility                                                                    |
+|----------------------|---------------------|-----------------------------------------------------------------------------------|
+| config normalization | `config.go`         | resolve paths, formats, feature flags, package name, preset paths                 |
+| source loading       | `internal/source`   | read schema and preset files as text                                              |
+| schema parsing       | `internal/schema`   | parse YAML schema into strict branch/leaf model                                   |
+| semantic build       | `internal/semantic` | derive Go names, field kinds, defaults, enum metadata, preset payloads            |
+| emit                 | `internal/emit`     | render templates and `go/format` generated files                                  |
+| write                | `write.go`          | create output directory, remove stale generated files, atomically replace outputs |
+
+More detailed flow:
+
+```mermaid
+flowchart LR
+    subgraph Input
+        A["config.yml"]
+        B["minimal.yml"]
+        C["medium.yml"]
+        D["custom presets"]
+    end
+
+    subgraph Generator
+        E["source.Load"]
+        F["schema.Parse"]
+        G["semantic.Build"]
+        H["emit templates"]
+    end
+
+    subgraph Output
+        I["types_gen.go"]
+        J["parse_*.go"]
+        K["render_*.go"]
+        L["cli.go"]
+        M["presets.go"]
+    end
+
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    H --> J
+    H --> K
+    H --> L
+    H --> M
+```
 
 ## Public Generator API
 
@@ -79,15 +113,18 @@ package main
 import "github.com/amazing-generators/goconfgen"
 
 func main() {
-  _, err := goconfgen.Run(goconfgen.ConfigObj{
-    SourceDir:   "./examples/complex/source",
-    OutputDir:   "./target",
-    PackageName: "complexcfg",
-    Force:       true,
-  })
-  if err != nil {
-    panic(err)
-  }
+	resultObj, err := goconfgen.Run(goconfgen.ConfigObj{
+		SourceDir:   "./examples/source",
+		OutputDir:   "./target",
+		PackageName: "complexcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
+		Force:       true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	_ = resultObj
 }
 ```
 
@@ -95,60 +132,48 @@ CLI usage:
 
 ```bash
 go run ./cmd/goconfgen \
-  -source ./examples/complex/source \
+  -source ./examples/source \
   -out ./target \
   -pkg complexcfg \
   -formats yaml,json,hjson \
-  -with-cli=true \
   -force
 ```
 
-CLI wrapper location:
+`ConfigObj` fields:
 
-- [cmd/goconfgen/main.go](/mnt/w541-data/shared/GolandProjects/goconfgen/cmd/goconfgen/main.go:1)
+| Field                 | Meaning                                                                            |
+|-----------------------|------------------------------------------------------------------------------------|
+| `Schema`              | explicit schema file path; otherwise `config.yml` is searched in `SourceDir`       |
+| `SourceDir`           | directory containing `config.yml` and optional `minimal.yml` / `medium.yml`        |
+| `OutputDir`           | target directory for generated Go files                                            |
+| `PackageName`         | package name for generated code; derived from output directory when omitted        |
+| `Formats`             | required library-side subset of `yaml`, `json`, `hjson`                            |
+| `Presets`             | optional explicit preset paths as `map[string]string`                              |
+| `Features.CLI`        | generate `cli.go`; nil means enabled                                               |
+| `Features.Validate`   | generate `validate.go`; nil means enabled                                          |
+| `Features.Render`     | generate render files; nil means enabled                                           |
+| `Features.Presets`    | generate embedded presets; nil means enabled                                       |
+| `Features.Interfaces` | generate schema-requested interfaces; nil means enabled                            |
+| `Force`               | create missing output dir, overwrite generated files, remove stale generated files |
 
-Main input fields of `ConfigObj`:
-
-- `SourceDir`: directory containing `config.yml` and optional `minimal.yml` / `medium.yml`
-- `SchemaPath`: explicit schema file path
-- `MinimalPath`: explicit minimal preset path
-- `MediumPath`: explicit medium preset path
-- `OutputDir`: target directory for generated package files
-- `PackageName`: Go package name for the generated package
-- `Formats`: optional subset of `yaml`, `json`, `hjson`; empty means all formats
-- `WithCLI`: optional toggle for `flags_gen.go`; `nil` means enabled by default
-- `Force`: allow creation of missing output directories and overwrite existing generated files
-
-`Run` returns `ResultObj`, which reports:
+`Run` returns `ResultObj` with:
 
 - output directory
 - generated file paths
 - resolved schema path
-- resolved optional preset paths
+- resolved preset path map
 
-Presets are embedded directly into the generated Go package, so no standalone preset files are produced.
+## Schema Model
 
-## Input Schema Model
-
-The schema is a YAML tree made of two node kinds:
+The input schema is YAML with two node kinds:
 
 - branch nodes
 - leaf nodes
 
-A branch may contain:
+Branch nodes may contain nested branches, leaf nodes, `usage`, and
+`gen_interface`.
 
-- nested branches
-- `usage`
-- `gen_interface: true`
-
-A leaf may contain:
-
-- `type`
-- `usage`
-- `value`
-- `min`
-- `max`
-- `enum`
+Leaf nodes may contain `type`, `usage`, `value`, `min`, `max`, and `enum`.
 
 Example:
 
@@ -170,13 +195,39 @@ server:
     max: 65535
 ```
 
-Full example schema:
+Schema parsing flow:
 
-- [examples/complex/source/config.yml](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/source/config.yml:1)
+```mermaid
+flowchart TD
+    A["YAML document"] --> B{"root mapping?"}
+    B -- no --> X["error"]
+    B -- yes --> C["duplicate key check"]
+    C --> D["parseBranch"]
+    D --> E{"node has leaf metadata?"}
+    E -- yes --> F["buildLeaf"]
+    E -- no --> G["parse child branches"]
+    F --> H["ParseType"]
+    H --> I["parse min/max"]
+    I --> J["validate default value"]
+    J --> K["schema.ResultObj"]
+    G --> K
+```
+
+Strict schema rules:
+
+- unsupported types fail generation
+- duplicate mapping keys fail generation
+- branch/leaf mixed metadata fails generation
+- enum values must be non-empty and unique
+- enum defaults must match declared enum values
+- `min` / `max` are supported only for scalar fields
+- generated Go name collisions fail generation
+- preset files are validated against the schema during generation
+- unknown preset keys fail generation
 
 ## Supported Types
 
-Currently supported scalar types:
+Scalar types:
 
 - `string`
 - `bool`
@@ -188,270 +239,192 @@ Currently supported scalar types:
 - `size`
 - inline `enum`
 
-Currently supported array types:
+Array types:
 
 - `[]string`
 - `[]bool`
-- `[]int*`
-- `[]uint*`
-- `[]float*`
+- `[]int`, `[]int8`, `[]int16`, `[]int32`, `[]int64`
+- `[]uint`, `[]uint8`, `[]uint16`, `[]uint32`, `[]uint64`
+- `[]float`, `[]float32`, `[]float64`
 - `[]duration`
 - `[]time.Duration`
 - `[]size`
 - `[]enum`
 
-Currently supported map types:
+Map types:
 
 - `map[string]string`
 - `map[string][]string`
 - `map[string]any`
 
-Schema validation is strict:
+`size` accepts byte units such as `b`, `kb`, `kib`, `mb`, `mib`, `gb`,
+`gib`, `tb`, and `tib`. Rendered size values use canonical binary units when
+the value divides exactly.
 
-- unsupported types fail generation
-- enum defaults must match declared enum values
-- `min` / `max` are supported only for scalar fields
-- preset files are validated against the schema during generation
-- duplicate mapping keys are rejected
-- unknown preset keys are rejected
-- unknown config keys are rejected during runtime parsing
+`duration` and `time.Duration` use Go's `time.ParseDuration` syntax.
 
-## Presence Semantics
+## Semantic Model
 
-One of the central design points is explicit presence tracking.
-
-Generated `ConfigObj` does not treat “field is absent” and “field is present with zero value” as the same thing. The
-generated package keeps a `presenceMap` and marks fields when they were explicitly provided by parse or CLI override
-logic.
-
-This matters for:
-
-- rendering only explicitly present fields
-- preserving semantic difference between omitted and explicit zero values
-- applying CLI overrides on top of defaults
-- future merge-like workflows
-
-Generated presence helpers live in:
-
-- [examples/complex/target/accessors_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/accessors_gen.go:1)
-
-The important generated methods are:
-
-- `New() ConfigObj`
-- `ApplyDefaults()`
-- `HasPath(path string) bool`
-
-## How the Generated Package Works
-
-After generation, consumers do not interact with `goconfgen` anymore. They interact with the generated package.
-
-Main runtime flow:
+`internal/semantic` translates the parsed schema into a generation-ready model:
 
 ```mermaid
 flowchart TD
-  A["config file or preset bytes"] --> B["ParseYAML / ParseJSON / ParseHJSON / ParseFile"]
-  B --> C["format-specific parse helpers"]
-  C --> D["newConfigWithDefaults"]
-  D --> E["typed setters / field metadata parse funcs"]
-  E --> F["markPresent(path)"]
-  F --> H["Validate()"]
-  H --> G["*ConfigObj"]
-  G --> I["RenderYAML / RenderJSON / RenderHJSON"]
-  G --> J["RegisterFlags + ApplyFlags"]
+    A["schema.BranchObj"] --> B["semantic.BranchObj"]
+    A --> C["semantic.FieldObj array"]
+    C --> D["field kind classification"]
+    C --> E["default Go literal"]
+    C --> F["enum collection"]
+    C --> G["namespace collision validation"]
+    G --> H["semantic.PackageObj"]
+    F --> H
+    E --> H
+    D --> H
 ```
 
-The generated package contains three important layers:
+The semantic layer decides:
 
-- typed config model
-- generated schema metadata
-- standalone generated runtime helpers in `runtime_gen.go`
+- generated struct names
+- generated field accessors
+- generated enum names
+- field kind and bit size
+- default Go literals
+- feature compatibility
+- preset availability
+- primary format
+- required import sets for templates
 
-Generated parse entrypoints:
+## Generated Runtime Flow
 
-- `ParseFile(path string) (*ConfigObj, error)`
-- `ParseYAML(data []byte) (*ConfigObj, error)`
-- `ParseJSON(data []byte) (*ConfigObj, error)`
-- `ParseHJSON(data []byte) (*ConfigObj, error)`
+After generation, applications use the generated package directly:
 
-Generated render entrypoints:
+```mermaid
+flowchart TD
+    A["ParseFile(path)"] --> B{"file extension"}
+    B -->|. yaml / . yml| C["parseYAMLBytes"]
+    B -->|. json| D["parseJSONBytes"]
+    B -->|. hjson| E["parseHJSONBytes"]
+    C --> F["newConfigWithDefaults"]
+    D --> F
+    E --> F
+    F --> G["applyMapConfigObj"]
+    G --> H["generated typed setters"]
+    H --> I["originMap marks file origin"]
+    I --> J{"Validate generated?"}
+    J -- yes --> K["Validate"]
+    J -- no --> L["return *ConfigObj"]
+    K --> L
+```
 
-- `RenderYAML(obj *ConfigObj) ([]byte, error)`
-- `RenderYAMLPresent(obj *ConfigObj) ([]byte, error)`
-- `RenderJSON(obj *ConfigObj) ([]byte, error)`
-- `RenderJSONPresent(obj *ConfigObj) ([]byte, error)`
-- `RenderHJSON(obj *ConfigObj) ([]byte, error)`
-- `RenderHJSONPresent(obj *ConfigObj) ([]byte, error)`
+Primary runtime entrypoints:
 
-Generated validation entrypoint:
+| Entry                                                               | Meaning                                         |
+|---------------------------------------------------------------------|-------------------------------------------------|
+| `New() ConfigObj`                                                   | construct config with schema defaults           |
+| `ParseFile(path string) (*ConfigObj, error)`                        | parse by file extension                         |
+| `LoadConfig(filePath string, argsArr []string) (*ConfigObj, error)` | parse file, then apply CLI overrides            |
+| `ApplyCLI(obj *ConfigObj, argsArr []string) error`                  | apply generated CLI flags to an existing object |
+| `Validate() error`                                                  | validate enum and range rules when generated    |
+| `RenderYAML(partial bool)`                                          | render YAML when generated                      |
+| `RenderJSON(partial bool)`                                          | render JSON when generated                      |
+| `RenderHJSON(partial bool)`                                         | render HJSON when generated                     |
 
-- `Validate() error`
+## Parser Behavior
 
-When validation generation is enabled, generated parse entrypoints validate the parsed object before returning it.
-
-Generated CLI helpers:
-
-- `RegisterFlags(flagSet *flag.FlagSet)`
-- `ApplyFlags(obj *ConfigObj) error`
-- `HelpText() string`
-- `FullPresetText() string` (renders the full preset in the primary enabled format)
-
-## Selective Generation
-
-Formats and CLI generation can be trimmed at generation time.
-
-- `Formats: []string{"yaml"}` generates only YAML parse/render/preset entrypoints
-- `WithCLI: ptr(false)` skips `flags_gen.go` completely
-- empty `Formats` keeps the historical default and generates YAML, JSON, and HJSON together
-
-When a format is disabled, the generated package also drops its format-specific imports and runtime helpers.
-
-Generated package example files:
-
-- [examples/complex/target/types_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/types_gen.go:1)
-- [examples/complex/target/parse_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/parse_gen.go:1)
-- [examples/complex/target/render_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/render_gen.go:1)
-- [examples/complex/target/flags_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/flags_gen.go:1)
-- [examples/complex/target/validate_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/validate_gen.go:1)
-
-## Generated Runtime Structure
-
-The generated package is split so that each concern stays isolated.
+The three parsers share the same typed assignment path after decoding:
 
 ```mermaid
 flowchart LR
-  A["types_gen.go"] --> Z["ConfigObj API"]
-  B["accessors_gen.go"] --> Z
-  C["enums_gen.go"] --> Z
-  D["schema_gen.go"] --> Z
-  E["parse_gen.go"] --> Z
-  F["flags_gen.go"] --> Z
-  G["validate_gen.go"] --> Z
-  H["render_gen.go"] --> Z
-  I["presets_gen.go"] --> Z
+    A["format bytes"] --> B["format decoder"]
+    B --> C["map[string]any"]
+    C --> D["generated branch switch"]
+    D --> E["typed scalar conversion"]
+    E --> F["setter"]
+    F --> G["originMap"]
 ```
 
-That split is intentional:
+Format-specific behavior:
 
-- runtime parsing uses `schema_gen.go` plus setter/getter code from `accessors_gen.go`
-- rendering uses the same schema tree to preserve field order and comments
-- validation is generated as plain Go checks instead of reflection-driven rules
-- presets are embedded into code so the package is self-contained
+| Format | Duplicate keys                                        | Numeric path                     | Notes                                                                        |
+|--------|-------------------------------------------------------|----------------------------------|------------------------------------------------------------------------------|
+| YAML   | checked through `yaml.Node` traversal                 | YAML decoder native scalar types | comments are supported for rendered output                                   |
+| JSON   | checked through `json.Decoder` token traversal        | decoded into `map[string]any`    | very large integers can lose precision because JSON numbers become `float64` |
+| HJSON  | not guaranteed to detect duplicates before map decode | decoded into `map[string]any`    | duplicate-key strictness is weaker than JSON/YAML                            |
 
-## Presets
+Parser scope:
 
-`goconfgen` supports three preset families:
+- unknown schema keys are rejected
+- map fields keep dynamic keys inside the field value
+- duplicate JSON/YAML object keys are rejected
+- HJSON duplicate-key rejection is not guaranteed
+- parsers read the full input byte slice; `ParseFile` reads the full file
+- there is no built-in input size limit
+- JSON duplicate-key traversal has a nesting guard
+- YAML and HJSON parsing rely on the underlying parser behavior for depth
 
-- `full`
-- `minimal`
-- `medium`
+## Origin Tracking
 
-Rules:
-
-- `full` is always generated from schema defaults
-- `minimal.yml` is optional
-- `medium.yml` is optional
-- optional presets are validated against the schema during generation
-- preset output is normalized to schema order
-- YAML and HJSON presets preserve schema usage comments
-
-Preset accessors are generated only for enabled formats.
-
-Preset accessors are generated into `presets_gen.go`:
-
-- `HasFull()`, `HasMinimal()`, `HasMedium()`
-- `FullYAML()`, `FullJSON()`, `FullHJSON()`
-- `MinimalYAML()`, `MinimalJSON()`, `MinimalHJSON()`
-- `MediumYAML()`, `MediumJSON()`, `MediumHJSON()`
-- `FullConfig()`, `MinimalConfig()`, `MediumConfig()`
-
-### Embedded Preset Layout
-
-Presets are not emitted as external files anymore.
-
-Instead, generator-side preset rendering works like this:
-
-1. render each preset in YAML, JSON, and HJSON form
-2. concatenate all rendered preset payloads into one raw byte blob
-3. store per-preset `start` / `len` constants
-4. embed that byte slice directly into generated code
-
-Runtime-side access works like this:
+Generated config objects track value origin per schema path.
 
 ```mermaid
 flowchart TD
-  A["rendered preset payloads"] --> B["single raw blob"]
-  B --> C["cPresetDataArr []byte"]
-  C --> D["slice by start/len"]
-  D --> E["FullYAML / MinimalJSON / MediumHJSON ..."]
+    A["ApplyDefaults"] --> B["fieldOriginDefault"]
+    C["Parse file"] --> D["fieldOriginFile"]
+    E["ApplyCLI"] --> F["fieldOriginCLI"]
+    B --> G["originMap[path]"]
+    D --> G
+    F --> G
+    G --> H["canApplyOrigin"]
+    H --> I["higher origin wins"]
 ```
 
-This layout keeps the generated package simple and removes extra runtime dependencies from preset access.
+Origin order:
 
-Example implementation:
+1. defaults
+2. file
+3. CLI
 
-- [examples/complex/target/presets_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/presets_gen.go:1)
+This allows `LoadConfig` to apply defaults, then file values, then CLI values
+without lower-priority sources overwriting higher-priority values.
 
-## Rendering Behavior
+Important object semantics:
 
-Renderer behavior is schema-driven, not struct-order-driven.
+- `ConfigObj` is a normal Go struct with an internal `originMap`
+- copying `ConfigObj` by value also copies the map reference
+- generated setters and parsing are not designed for concurrent mutation
+- treat a loaded config as immutable after construction if it is shared between goroutines
+- use explicit application-level cloning if mutable copies are required
 
-That means:
-
-- field order follows schema order
-- branch and field comments come from schema `usage`
-- YAML output contains comments
-- HJSON output contains comments
-- JSON output is comment-free, as expected
-- `Render*Present` variants include only explicitly present fields
-
-This is why the generated package keeps a runtime schema tree in `schema_gen.go`.
-
-## Enums and Interfaces
-
-Enums are declared inline in the schema and become typed generated Go enums.
-
-Example schema fragment:
-
-```yaml
-logging:
-  level:
-    enum: [ debug, info, warn, error ]
-    value: info
-```
-
-Generated result:
-
-- enum type with stable hashed name
-- per-value constants
-- parse helper
-- `String()` and validity helpers
-
-Interfaces are generated for branches marked with `gen_interface: true`.
-
-That flag propagates to the whole subtree below the marked branch, so nested branches inherit interface generation automatically.
-
-In the example:
-
-- `server.gen_interface: true`
-- generated `ServerInterface`
-
-Example generated interface:
-
-- [examples/complex/target/types_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/types_gen.go:1)
+`HasPath(path string)` returns true for values provided by file or CLI, and false
+for values that only came from defaults.
 
 ## CLI Override Behavior
 
-Generated CLI flags are derived from schema leaves.
+Generated CLI flags are derived from leaf schema paths.
 
-Important behaviors:
+```mermaid
+flowchart TD
+    A["argsArr"] --> B["flag.FlagSet"]
+    B --> C["runtimeFlagInterface per field"]
+    C --> D["flag seen?"]
+    D -- no --> E["skip field"]
+    D -- yes --> F["parse text value"]
+    F --> G["typed setter"]
+    G --> H["fieldOriginCLI"]
+    H --> I{"Validate generated?"}
+    I -- yes --> J["Validate"]
+    I -- no --> K["done"]
+```
 
-- scalar fields parse as typed scalar values
-- enum fields accept enum text
-- duration fields parse with `time.ParseDuration`
-- size fields parse with size parser
-- array string flags parse as CSV and append to existing arrays
-- `map[string]string` accepts shorthand first, then JSON as fallback
-- structured maps like `map[string][]string` and `map[string]any` parse from JSON
+CLI parsing rules:
+
+- scalar fields parse as scalar values
+- bool flags accept Go bool syntax through `strconv.ParseBool`
+- enum flags accept enum text
+- duration flags use `time.ParseDuration`
+- size flags use the generated size parser
+- array flags use comma-separated text
+- `map[string]string` accepts `key=value,key=value` shorthand first, then JSON fallback
+- `map[string][]string` and `map[string]any` parse from JSON text
 
 Example:
 
@@ -461,112 +434,288 @@ Example:
 -labels.common=env=prod,team=platform
 ```
 
-Generated implementation example:
+## Rendering Behavior
 
-- [examples/complex/target/flags_gen.go](/mnt/w541-data/shared/GolandProjects/goconfgen/examples/complex/target/flags_gen.go:1)
+Renderers are generated from the schema and preserve schema order.
 
-## Templates
+```mermaid
+flowchart TD
+    A["ConfigObj"] --> B["generated branch walker"]
+    B --> C{"partial render?"}
+    C -- no --> D["include every schema field"]
+    C -- yes --> E["include paths with file/CLI origin"]
+    D --> F["format-specific value renderer"]
+    E --> F
+    F --> G["YAML / JSON / HJSON bytes"]
+```
 
-Generated files are emitted through templates, not assembled line-by-line as full files.
+Renderer rules:
 
-Template entrypoint:
+- field order follows schema order
+- YAML and HJSON include comments from `usage`
+- JSON is comment-free
+- partial rendering includes only paths marked as file or CLI origin
+- full rendering includes every schema field
+- renderers use generated per-branch code instead of a runtime schema tree
 
-- [internal/codegen/template.go](/mnt/w541-data/shared/GolandProjects/goconfgen/internal/codegen/template.go:1)
+`map[string]any` values are normalized before rendering so nested map keys are
+stable.
 
-Template directory:
+## Presets
 
-- [internal/codegen/templates](/mnt/w541-data/shared/GolandProjects/goconfgen/internal/codegen/templates)
+Presets are generated and embedded into the Go package.
 
-This keeps generation deterministic, easier to reason about, and easier to extend when new output files are added.
+Preset families:
+
+- `full`
+- `minimal`
+- `medium`
+- custom names supplied through `Presets` or repeated `-preset NAME=PATH`
+
+Rules:
+
+- `full` is always generated from schema defaults
+- `minimal.yml` and `medium.yml` are optional
+- `full` is reserved and cannot be supplied by the user
+- explicit `minimal` / `medium` cannot conflict with autodetected files
+- optional presets are validated against the schema during generation
+- preset output is normalized to schema order
+- preset bytes are embedded in `presets.go`
+
+Generator-side preset flow:
+
+```mermaid
+flowchart TD
+    A["schema defaults"] --> B["full preset node"]
+    C["minimal.yml"] --> D["validate preset"]
+    E["medium.yml"] --> D
+    F["custom preset files"] --> D
+    D --> G["normalized yaml.Node"]
+    B --> H["render YAML / JSON / HJSON"]
+    G --> H
+    H --> I["embed byte variables in presets.go"]
+```
+
+Runtime-side preset flow:
+
+```mermaid
+flowchart TD
+    A["cFullYAMLBytes / cNameJSONBytes"] --> B["FullYAML / PresetJSON"]
+    A --> C["FullConfig / Preset"]
+    C --> D["parsePrimaryBytes"]
+    D --> E["*ConfigObj"]
+```
+
+Generated preset helpers include:
+
+- `FullConfig() *ConfigObj`
+- `FullYAML()`, `FullJSON()`, `FullHJSON()` for enabled formats
+- `HasMinimal()`, `MinimalConfig()`, `MinimalYAML()` and matching helpers when present
+- `HasMedium()`, `MediumConfig()`, `MediumYAML()` and matching helpers when present
+- `PresetNames() []string`
+- `Preset(name string) (*ConfigObj, bool)`
+- `PresetYAML(name string) ([]byte, bool)`
+- `PresetJSON(name string) ([]byte, bool)`
+- `PresetHJSON(name string) ([]byte, bool)`
+
+## Enums
+
+Inline schema enums become generated Go enum types.
+
+Schema:
+
+```yaml
+logging:
+  level:
+    enum: [ debug, info, warn, error ]
+    value: info
+```
+
+Generated enum behavior:
+
+- enum type
+- constants for every value
+- `String()`
+- `IsValid()`
+- parse helper
+- text marshal/unmarshal
+- JSON marshal/unmarshal
+
+Enum arrays use the same enum type for each item.
+
+## Interfaces
+
+Branches marked with `gen_interface: true` generate Go interfaces.
+
+The flag propagates into the subtree below the marked branch. This means nested
+branches inherit interface generation when their parent branch requests it.
+
+Generated interfaces expose getters for direct child branches and fields.
+
+## Selective Generation
+
+Formats and feature groups can be disabled at generation time.
+
+Examples:
+
+```go
+falseFlag := false
+
+_, err := goconfgen.Run(goconfgen.ConfigObj{
+Schema:      "./config.yml",
+OutputDir:   "./target",
+PackageName: "yamlcfg",
+Formats:     []string{"yaml"},
+Features: goconfgen.FeaturesObj{
+CLI:     &falseFlag,
+Render:  &falseFlag,
+Presets: &falseFlag,
+},
+Force: true,
+})
+```
+
+Behavior:
+
+- disabled formats do not emit their `parse_*` / `render_*` files
+- disabled CLI does not emit `cli.go`
+- disabled validation does not emit `validate.go`
+- disabled presets do not emit `presets.go`
+- `helpers_gen.go` is still emitted because it contains shared runtime helpers
+- library calls must set `Formats` explicitly
+- CLI defaults to `yaml,json,hjson`
+
+## Operational Notes
+
+These behaviors are intentional and should be understood by consumers:
+
+- `ParseFile` reads the whole config file into memory.
+- Generator source loading reads schema and presets into memory.
+- There is no built-in file size limit.
+- HJSON duplicate-key detection is weaker than JSON/YAML.
+- JSON/HJSON numeric decoding goes through `map[string]any`; avoid very large JSON integer literals when exact `uint64`
+  precision matters.
+- Generated `ConfigObj` is mutable during parse/default/CLI application.
+- Generated `ConfigObj` is not intended for concurrent mutation.
+- Copying `ConfigObj` by value copies the internal `originMap` reference.
+- Generated code favors direct typed code over reflection to keep runtime behavior inspectable and fast.
+- Generated comments come from schema `usage`; keep schema usage text suitable for generated source and rendered config
+  files.
+
+## File Safety
+
+`Run` writes only known generated file names.
+
+Write behavior:
+
+- unchanged files are not rewritten
+- changed generated files require `Force`
+- missing output directory requires `Force`
+- stale known generated files are removed only in `Force` mode
+- stale cleanup checks the generated header before removing a file
+- writes use temp files and same-directory rename
+
+This allows checked-in generated packages while protecting unrelated files in
+the target directory.
 
 ## Repository Layout
 
-- `cmd/goconfgen`: thin CLI wrapper
-- `internal/source`: input file loading
-- `internal/schema`: schema parsing and validation
-- `internal/ir`: semantic normalization and preset rendering
-- `internal/codegen`: template-based file generation
-- `internal/codegen/templates`: text/template sources for every generated file (runtime helpers are emitted inline into
-  the generated package, not imported from a shared runtime)
-- `internal/naming`: shared `GoName`/`GoTypeName` translation for all layers
-- `internal/yamltool`: shared `yaml.Node` helpers (clone, duplicate-key check) used by schema and ir
-- `examples/complex/source`: example source schema and optional presets
-- `examples/complex/target`: checked-in generated example package
-- `run_test.go`: integration test that regenerates the example package and compiles + runs a smoke test against it
+| Path                      | Purpose                                                    |
+|---------------------------|------------------------------------------------------------|
+| `cmd/goconfgen`           | thin CLI wrapper                                           |
+| `config.go`               | public config normalization                                |
+| `run.go`                  | public generator entrypoint                                |
+| `write.go`                | output directory and atomic write behavior                 |
+| `internal/source`         | input file loading                                         |
+| `internal/schema`         | schema parsing, type parsing, default validation           |
+| `internal/semantic`       | Go name derivation, field model, presets, semantic checks  |
+| `internal/emit`           | template rendering and generated file selection            |
+| `internal/emit/templates` | templates for generated package files                      |
+| `internal/yamltool`       | shared `yaml.Node` helpers                                 |
+| `examples/source`         | example schema and optional presets                        |
+| `examples/complex/target` | checked-in generated reference package                     |
+| `examples/variants`       | selective generation examples                              |
+| `run_test.go`             | integration tests around generation and generated packages |
 
-## Example End-to-End Usage
+## End-to-End Example
 
-Generate package:
+Generate a package:
 
 ```bash
 go run ./cmd/goconfgen \
-  -source ./examples/complex/source \
+  -source ./examples/source \
   -out ./examples/complex/target \
   -pkg complexcfg \
+  -formats yaml,json,hjson \
   -force
 ```
 
-Re-generate the checked-in example package:
-
-```bash
-go run ./cmd/goconfgen -source ./examples/complex/source -out ./examples/complex/target -pkg complexcfg -force
-```
-
-Consume generated package:
+Use the generated package:
 
 ```go
 package main
 
 import (
-  "fmt"
+	"fmt"
 
-  "your/module/complexcfg"
+	"your/module/complexcfg"
 )
 
 func main() {
-  obj, err := complexcfg.ParseYAML([]byte(`
-server:
-  port: 9090
-logging:
-  level: warn
-`))
-  if err != nil {
-    panic(err)
-  }
+	obj, err := complexcfg.LoadConfig("./config.yml", []string{"-server.port=9090"})
+	if err != nil {
+		panic(err)
+	}
 
-  fmt.Println(obj.Server.Port)
+	fmt.Println(obj.Server.Port)
 }
+```
+
+Render a partial config containing only file/CLI-provided values:
+
+```go
+dataArr, err := obj.RenderYAML(true)
+if err != nil {
+panic(err)
+}
+fmt.Println(string(dataArr))
 ```
 
 ## Verification
 
-The project is verified with live generation and compile-time checks.
+The project is verified through generator and generated-package tests.
 
-Main integration path:
+Main checks:
 
-1. regenerate the example package into a temp directory
-2. compare its **file layout** with the checked-in example (`examples/complex/target`); generated file contents differ
-   between runs because of the embedded `Generated at: <timestamp>` header and are therefore not compared byte-for-byte
-3. create a temporary module around the freshly generated package
-4. run `go mod tidy`
-5. run `go test ./...`
-6. exercise the generated package via a smoke test that validates defaults, parses presets in every format,
-   round-trips YAML / JSON / HJSON, checks HJSON preserves usage comments, and verifies CLI overrides apply correctly
+- `go test ./...`
+- generated packages compile as standalone modules in integration tests
+- generated defaults are checked
+- YAML / JSON / HJSON parsers are exercised
+- unknown config keys are rejected
+- generated validation is exercised
+- CLI override behavior is exercised
+- selective generation removes stale generated files
+- checked-in examples compile
 
-The main integration test is here:
+Useful local commands:
 
-- [run_test.go](/mnt/w541-data/shared/GolandProjects/goconfgen/run_test.go:1)
+```bash
+go test ./...
+go vet ./...
+CGO_ENABLED=1 go test -race ./...
+```
 
 ## Current Scope
 
-`goconfgen` is for generating generic configuration runtime code.
-
-It intentionally does not try to implement:
+`goconfgen` intentionally does not implement:
 
 - application-specific business validation
-- startup orchestration
-- config include / redirect chains
-- dynamic schema mutation at runtime
+- remote config loading
+- include/import chains
+- live reload orchestration
+- runtime schema mutation
+- automatic config size limits
+- concurrent mutation control
 
-It takes a declarative schema and produces a deterministic, checked-in-friendly Go package that another project can
-import and use directly.
+The intended usage is to generate deterministic, checked-in-friendly Go runtime
+configuration code from a strict declarative schema.

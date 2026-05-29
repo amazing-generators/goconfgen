@@ -1,0 +1,116 @@
+package {{ .PackageName }}
+
+import "sort"
+
+// // // // // // // // // //
+
+{{- range .PresetObjArr }}
+    {{- if .PresentFlag }}
+        var c{{ .TitleText }}YAMLBytes = {{ rawBytesLiteral .YAMLText }}
+        var c{{ .TitleText }}JSONBytes = {{ rawBytesLiteral .JSONText }}
+        var c{{ .TitleText }}HJSONBytes = {{ rawBytesLiteral .HJSONText }}
+
+        func {{ .TitleText }}Config() *ConfigObj {
+        obj, err := parsePrimaryBytes(c{{ .TitleText }}PrimaryBytes(), false)
+        if err != nil {
+        panic(err)
+        }
+        return obj
+        }
+
+        func {{ .TitleText }}YAML() []byte { return append([]byte(nil), c{{ .TitleText }}YAMLBytes...) }
+
+        func {{ .TitleText }}JSON() []byte { return append([]byte(nil), c{{ .TitleText }}JSONBytes...) }
+
+        func {{ .TitleText }}HJSON() []byte { return append([]byte(nil), c{{ .TitleText }}HJSONBytes...) }
+
+        func Has{{ .TitleText }}() bool { return true }
+
+        func c{{ .TitleText }}PrimaryBytes() []byte {
+        {{- if $.HasYAML }}
+            return c{{ .TitleText }}YAMLBytes
+        {{- else if $.HasJSON }}
+            return c{{ .TitleText }}JSONBytes
+        {{- else if $.HasHJSON }}
+            return c{{ .TitleText }}HJSONBytes
+        {{- else }}
+            return nil
+        {{- end }}
+        }
+    {{- else }}
+        func Has{{ .TitleText }}() bool { return false }
+    {{- end }}
+{{- end }}
+
+func PresetNames() []string {
+nameTextArr := make([]string, 0, len(cPresetConfigByNameMap))
+for nameText := range cPresetConfigByNameMap {
+nameTextArr = append(nameTextArr, nameText)
+}
+sort.Strings(nameTextArr)
+return nameTextArr
+}
+
+func Preset(nameText string) (*ConfigObj, bool) {
+ctorObj := cPresetConfigByNameMap[nameText]
+if ctorObj == nil {
+return nil, false
+}
+return ctorObj(), true
+}
+
+func PresetYAML(nameText string) ([]byte, bool) {
+dataArr, existsFlag := cPresetYAMLByNameMap[nameText]
+if !existsFlag {
+return nil, false
+}
+return append([]byte(nil), dataArr...), true
+}
+
+func PresetJSON(nameText string) ([]byte, bool) {
+dataArr, existsFlag := cPresetJSONByNameMap[nameText]
+if !existsFlag {
+return nil, false
+}
+return append([]byte(nil), dataArr...), true
+}
+
+func PresetHJSON(nameText string) ([]byte, bool) {
+dataArr, existsFlag := cPresetHJSONByNameMap[nameText]
+if !existsFlag {
+return nil, false
+}
+return append([]byte(nil), dataArr...), true
+}
+
+var cPresetConfigByNameMap = map[string]func() *ConfigObj{
+{{- range .PresetObjArr }}
+    {{- if .PresentFlag }}
+        {{ quote .NameText }}: {{ .TitleText }}Config,
+    {{- end }}
+{{- end }}
+}
+
+var cPresetYAMLByNameMap = map[string][]byte{
+{{- range .PresetObjArr }}
+    {{- if .PresentFlag }}
+        {{ quote .NameText }}: c{{ .TitleText }}YAMLBytes,
+    {{- end }}
+{{- end }}
+}
+
+var cPresetJSONByNameMap = map[string][]byte{
+{{- range .PresetObjArr }}
+    {{- if .PresentFlag }}
+        {{ quote .NameText }}: c{{ .TitleText }}JSONBytes,
+    {{- end }}
+{{- end }}
+}
+
+var cPresetHJSONByNameMap = map[string][]byte{
+{{- range .PresetObjArr }}
+    {{- if .PresentFlag }}
+        {{ quote .NameText }}: c{{ .TitleText }}HJSONBytes,
+    {{- end }}
+{{- end }}
+}

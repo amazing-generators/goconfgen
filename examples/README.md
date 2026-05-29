@@ -18,6 +18,7 @@ go run ./../cmd/goconfgen \
   -source ./source \
   -out ./complex/target \
   -pkg complexcfg \
+  -formats yaml,json,hjson \
   -force
 ```
 
@@ -25,7 +26,7 @@ go run ./../cmd/goconfgen \
 
 ### YAML only
 
-Generates only the YAML parser object. CLI, validation, render methods, and presets are disabled.
+Generates only YAML parsing. CLI, validation, render methods, and presets are disabled.
 
 ```bash
 go run ./../cmd/goconfgen \
@@ -40,11 +41,11 @@ go run ./../cmd/goconfgen \
   -force
 ```
 
-Expected shape: no `flags_gen.go`, no `validate_gen.go`, no `presets_gen.go`, no JSON/HJSON parser files.
+Expected shape: no `cli.go`, no `validate.go`, no `presets.go`, no JSON/HJSON parser files.
 
 ### JSON + CLI
 
-Generates a JSON file parser plus CLI flags. Presets are disabled.
+Generates JSON parsing/rendering plus CLI argument support. Presets are disabled.
 
 ```bash
 go run ./../cmd/goconfgen \
@@ -59,21 +60,6 @@ go run ./../cmd/goconfgen \
 
 Expected shape: JSON parsing uses the standard `encoding/json` package. There are no YAML or HJSON parser files and no
 `gopkg.in/yaml.v3` or `github.com/hjson/hjson-go/v4` dependency in this generated package.
-
-### CLI only
-
-Generates only CLI flag parsing and the parser registry entry for `cli`.
-
-```bash
-go run ./../cmd/goconfgen \
-  -source ./source \
-  -out ./variants/cli_only/target \
-  -pkg clicfg \
-  -formats cli \
-  -force
-```
-
-Expected shape: no file parser objects, no render methods, no presets, no YAML/JSON/HJSON file parsing API.
 
 ### HJSON without presets
 

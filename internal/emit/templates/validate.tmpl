@@ -1,0 +1,54 @@
+package {{ .PackageName }}
+
+import (
+"fmt"
+"time"
+)
+
+// // // // // // // // // //
+
+var _ = time.Duration(0)
+
+func (obj *ConfigObj) Validate() error {
+if obj == nil {
+return fmt.Errorf("config is nil")
+}
+{{- range .FieldObjArr }}
+    {{ template "fieldValidator" . }}
+{{- end }}
+return nil
+}
+
+{{- define "fieldValidator" -}}
+    {{- if and .TypeObj.IsEnum (eq (printf "%s" .TypeObj.Family) "scalar") }}
+        if !obj.{{ .AccessorText }}.IsValid() {
+        return fmt.Errorf("field [{{ .PathText }}] has invalid enum value")
+        }
+    {{- else if and .TypeObj.IsEnum (eq (printf "%s" .TypeObj.Family) "array") }}
+        for itemIndex, itemValue := range obj.{{ .AccessorText }} {
+        if !itemValue.IsValid() {
+        return fmt.Errorf("field [{{ .PathText }}][%d] has invalid enum value", itemIndex)
+        }
+        }
+    {{- end }}
+
+    {{- if .MinRangeObj }}
+        {{- if .TypeObj.IsSize }}
+            if uint64(obj.{{ .AccessorText }}) < uint64({{ .MinRangeObj.GoLiteral }}) {
+        {{- else }}
+            if obj.{{ .AccessorText }} < {{ .MinRangeObj.GoLiteral }} {
+        {{- end }}
+        return fmt.Errorf("field [{{ .PathText }}] must be >= {{ .MinRangeObj.Text }}")
+        }
+    {{- end }}
+
+    {{- if .MaxRangeObj }}
+        {{- if .TypeObj.IsSize }}
+            if uint64(obj.{{ .AccessorText }}) > uint64({{ .MaxRangeObj.GoLiteral }}) {
+        {{- else }}
+            if obj.{{ .AccessorText }} > {{ .MaxRangeObj.GoLiteral }} {
+        {{- end }}
+        return fmt.Errorf("field [{{ .PathText }}] must be <= {{ .MaxRangeObj.Text }}")
+        }
+    {{- end }}
+{{- end -}}

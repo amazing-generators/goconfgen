@@ -34,7 +34,13 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: src-gen
-          path: .
+          path: |
+            .
+            !.git/**
+            !.idea/**
+            !tmp/**
+            !dist/**
+            !build_env.txt
 
   test:
     name: "Test [${{ matrix.os }}]"
@@ -127,12 +133,29 @@ jobs:
           build_ver="$(go run github.com/amazing-generators/gometagen/cmd/gometagen@latest version print -source ./_run/values.yml)"
           echo "BUILD_VER=${build_ver}" >> "$GITHUB_ENV"
 
-      - name: Create tag ${{ env.BUILD_VER }}
+      - name: Create stripped tag ${{ env.BUILD_VER }}
         shell: bash
         run: |
           set -Eeuo pipefail
+          origin_sha="$(git rev-parse HEAD)"
+
+          paths_arr=()
+          while IFS= read -r -d '' pathText; do
+            paths_arr+=("$pathText")
+          done < <(
+            git ls-files -z \
+              | grep -zE '^(examples/|\.github/|_run/)|\.[mM][dD]$' || true
+          )
+
+          if [ "${#paths_arr[@]}" -gt 0 ]; then
+            git rm -r --ignore-unmatch -- "${paths_arr[@]}"
+            git commit -m "release(${BUILD_VER}): strip non-release files"
+          fi
+
           git tag -a "${BUILD_VER}" -m "Release ${BUILD_VER}"
           git push origin "${BUILD_VER}"
+
+          git reset --hard "$origin_sha"
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2

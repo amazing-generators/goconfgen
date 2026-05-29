@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/amazing-generators/goconfgen/internal/naming"
 )
 
 // // // // // // // // // //
@@ -105,7 +103,7 @@ func ParseType(typeText string, enumValueTextArr []string) (TypeObj, error) {
 func BuildEnum(pathText string, usageText string, valueTextArr []string) *EnumObj {
 	return &EnumObj{
 		PathText:     pathText,
-		TypeName:     naming.GoName(pathText) + "Enum",
+		TypeName:     GoName(pathText) + "Enum",
 		UsageText:    strings.TrimSpace(usageText),
 		ValueTextArr: append([]string(nil), valueTextArr...),
 		ConstNameArr: buildEnumConstNameArr(pathText, valueTextArr),
@@ -113,11 +111,11 @@ func BuildEnum(pathText string, usageText string, valueTextArr []string) *EnumOb
 }
 
 func buildEnumConstNameArr(pathText string, valueTextArr []string) []string {
-	prefixText := naming.GoName(pathText)
+	prefixText := GoName(pathText)
 	resultArr := make([]string, 0, len(valueTextArr))
 
 	for _, valueText := range valueTextArr {
-		resultArr = append(resultArr, prefixText+naming.GoName(valueText))
+		resultArr = append(resultArr, prefixText+GoName(valueText))
 	}
 
 	return resultArr

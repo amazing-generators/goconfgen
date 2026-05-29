@@ -14,7 +14,7 @@ import (
 
 // // // // // // // // // //
 
-func TestRunComplexExampleObj(t *testing.T) {
+func TestRunComplexSourceDirObj(t *testing.T) {
 	t.Helper()
 
 	repoRootPath, err := os.Getwd()
@@ -22,14 +22,14 @@ func TestRunComplexExampleObj(t *testing.T) {
 		t.Fatalf("read working directory: %v", err)
 	}
 
-	sourcePath := filepath.Join(repoRootPath, "examples", "source")
-	expectedPath := filepath.Join(repoRootPath, "examples", "complex", "target")
+	sourcePath := writeComplexSourceDirObj(t)
 	outputPath := filepath.Join(t.TempDir(), "generated")
 
 	resultObj, err := Run(ConfigObj{
 		SourceDir:   sourcePath,
 		OutputDir:   outputPath,
 		PackageName: "complexcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	})
 	if err != nil {
@@ -40,8 +40,23 @@ func TestRunComplexExampleObj(t *testing.T) {
 		t.Fatalf("unexpected output dir: %s", resultObj.OutputDir)
 	}
 
-	assertDirLayoutObj(t, expectedPath, outputPath)
-	assertGeneratedHeaderSchemaObj(t, outputPath, "examples/source/config.yml")
+	assertDirLayoutObj(t, []string{
+		"accessors_gen.go",
+		"cli.go",
+		"entrypoint.go",
+		"enums_gen.go",
+		"helpers_gen.go",
+		"parse_hjson.go",
+		"parse_json.go",
+		"parse_yaml.go",
+		"presets.go",
+		"render_hjson.go",
+		"render_json.go",
+		"render_yaml.go",
+		"types_gen.go",
+		"validate.go",
+	}, outputPath)
+	assertGeneratedHeaderSchemaObj(t, outputPath, filepath.ToSlash(filepath.Join(sourcePath, "config.yml")))
 	assertGeneratedPackageObj(t, repoRootPath, outputPath)
 }
 
@@ -120,12 +135,13 @@ func TestRunSimpleSchemaWithoutEnumsObj(t *testing.T) {
 		SourceDir:   sourcePath,
 		OutputDir:   outputPath,
 		PackageName: "simplecfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
 	}
 
-	smokeText := "package simplecfg\n\nimport \"testing\"\n\nfunc TestGeneratedSimpleSmokeObj(t *testing.T) {\n\tobj := New()\n\tif obj.Name != \"demo\" {\n\t\tt.Fatalf(\"unexpected default: %q\", obj.Name)\n\t}\n\tparserObj, ok := ParserByName(\"yaml\")\n\tif !ok {\n\t\tt.Fatalf(\"yaml parser missing\")\n\t}\n\tparsedObj, err := parserObj.Parse([]byte(\"name: api\\n\"))\n\tif err != nil {\n\t\tt.Fatalf(\"parse yaml: %v\", err)\n\t}\n\tif parsedObj.Name != \"api\" {\n\t\tt.Fatalf(\"unexpected parsed value: %q\", parsedObj.Name)\n\t}\n}\n"
+	smokeText := "package simplecfg\n\nimport \"testing\"\n\nfunc TestGeneratedSimpleSmokeObj(t *testing.T) {\n\tobj := New()\n\tif obj.Name != \"demo\" {\n\t\tt.Fatalf(\"unexpected default: %q\", obj.Name)\n\t}\n\tparsedObj, err := parseYAMLBytes([]byte(\"name: api\\n\"), true)\n\tif err != nil {\n\t\tt.Fatalf(\"parse yaml: %v\", err)\n\t}\n\tif parsedObj.Name != \"api\" {\n\t\tt.Fatalf(\"unexpected parsed value: %q\", parsedObj.Name)\n\t}\n}\n"
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
@@ -139,9 +155,10 @@ func TestGeneratedUnknownKeysAreRejectedObj(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "server:\n  port:\n    type: int\n    value: 8080\nextensions:\n  raw:\n    type: \"map[string]any\"\n    value: {}\n"),
+		Schema:      writeSchemaObj(t, "server:\n  port:\n    type: int\n    value: 8080\nextensions:\n  raw:\n    type: \"map[string]any\"\n    value: {}\n"),
 		OutputDir:   outputPath,
 		PackageName: "strictcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
@@ -150,8 +167,6 @@ func TestGeneratedUnknownKeysAreRejectedObj(t *testing.T) {
 	smokeText := `package strictcfg
 
 import (
-	"flag"
-	"io"
 	"strings"
 	"testing"
 )
@@ -173,12 +188,7 @@ func TestGeneratedUnknownKeysRejectedObj(t *testing.T) {
 
 	for _, testCaseObj := range testCaseArr {
 		t.Run(testCaseObj.NameText, func(t *testing.T) {
-			parserObj, ok := ParserByName(testCaseObj.ParserText)
-			if !ok {
-				t.Fatalf("parser missing: %s", testCaseObj.ParserText)
-			}
-
-			_, err := parserObj.Parse([]byte(testCaseObj.DataText))
+			_, err := parseByNameObj(testCaseObj.ParserText, []byte(testCaseObj.DataText))
 			if err == nil || !strings.Contains(err.Error(), "unknown config key: "+testCaseObj.WantText) {
 				t.Fatalf("expected unknown key error [%s], got: %v", testCaseObj.WantText, err)
 			}
@@ -187,12 +197,7 @@ func TestGeneratedUnknownKeysRejectedObj(t *testing.T) {
 }
 
 func TestGeneratedMapAnyKeysStayDynamicObj(t *testing.T) {
-	parserObj, ok := ParserByName("yaml")
-	if !ok {
-		t.Fatalf("yaml parser missing")
-	}
-
-	obj, err := parserObj.Parse([]byte("server:\n  port: 9090\nextensions:\n  raw:\n    plugin:\n      nested: true\n      count: 2\n"))
+	obj, err := parseYAMLBytes([]byte("server:\n  port: 9090\nextensions:\n  raw:\n    plugin:\n      nested: true\n      count: 2\n"), true)
 	if err != nil {
 		t.Fatalf("map[string]any dynamic keys must not be rejected: %v", err)
 	}
@@ -205,11 +210,22 @@ func TestGeneratedMapAnyKeysStayDynamicObj(t *testing.T) {
 }
 
 func TestGeneratedCLIUnknownFlagRejectedObj(t *testing.T) {
-	flagSet := flag.NewFlagSet("generated", flag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	RegisterFlags(flagSet)
-	if err := flagSet.Parse([]string{"-server.unknown=1"}); err == nil {
+	obj := New()
+	if err := ApplyCLI(&obj, []string{"-server.unknown=1"}); err == nil {
 		t.Fatalf("expected unknown cli flag error")
+	}
+}
+
+func parseByNameObj(nameText string, dataArr []byte) (*ConfigObj, error) {
+	switch nameText {
+	case "yaml":
+		return parseYAMLBytes(dataArr, true)
+	case "json":
+		return parseJSONBytes(dataArr, true)
+	case "hjson":
+		return parseHJSONBytes(dataArr, true)
+	default:
+		return nil, nil
 	}
 }
 `
@@ -222,9 +238,10 @@ func TestRejectSchemaKeyCollisionsObj(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "generated")
 
 	_, err := Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "server:\n  port:\n    type: int\n    value: 80\n\"server.port\":\n  type: int\n  value: 81\n"),
+		Schema:      writeSchemaObj(t, "server:\n  port:\n    type: int\n    value: 80\n\"server.port\":\n  type: int\n  value: 81\n"),
 		OutputDir:   outputPath,
 		PackageName: "badcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	})
 	if err == nil || strings.Contains(err.Error(), "must not contain '.'") == false {
@@ -233,9 +250,10 @@ func TestRejectSchemaKeyCollisionsObj(t *testing.T) {
 
 	outputPath = filepath.Join(t.TempDir(), "generated")
 	_, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "foo-bar:\n  type: string\n  value: a\nfoo_bar:\n  type: string\n  value: b\n"),
+		Schema:      writeSchemaObj(t, "foo-bar:\n  type: string\n  value: a\nfoo_bar:\n  type: string\n  value: b\n"),
 		OutputDir:   outputPath,
 		PackageName: "badcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	})
 	if err == nil || strings.Contains(err.Error(), "collision") == false {
@@ -273,9 +291,10 @@ func TestRejectInvalidSchemaKeysObj(t *testing.T) {
 			t.Helper()
 
 			_, err := Run(ConfigObj{
-				SchemaPath:  writeSchemaObj(t, testCaseObj.SchemaText),
+				Schema:      writeSchemaObj(t, testCaseObj.SchemaText),
 				OutputDir:   filepath.Join(t.TempDir(), "generated"),
 				PackageName: "badcfg",
+				Formats:     []string{"yaml", "json", "hjson"},
 				Force:       true,
 			})
 			if err == nil || strings.Contains(err.Error(), testCaseObj.ExpectedMessageText) == false {
@@ -289,9 +308,10 @@ func TestRejectFloat32DefaultOverflowObj(t *testing.T) {
 	t.Helper()
 
 	_, err := Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "value:\n  type: float32\n  value: 1e100\n"),
+		Schema:      writeSchemaObj(t, "value:\n  type: float32\n  value: 1e100\n"),
 		OutputDir:   filepath.Join(t.TempDir(), "generated"),
 		PackageName: "floatcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	})
 	if err == nil || strings.Contains(err.Error(), "does not fit") == false {
@@ -309,9 +329,10 @@ func TestGeneratedParseSizeRejectsBadInputObj(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "limit:\n  type: size\n  value: 0\n"),
+		Schema:      writeSchemaObj(t, "limit:\n  type: size\n  value: 0\n"),
 		OutputDir:   outputPath,
 		PackageName: "sizecfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
@@ -331,15 +352,16 @@ func TestGeneratedBoolFlagRejectsGarbageObj(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "enabled:\n  type: bool\n  value: false\n"),
+		Schema:      writeSchemaObj(t, "enabled:\n  type: bool\n  value: false\n"),
 		OutputDir:   outputPath,
 		PackageName: "boolcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
 	}
 
-	smokeText := "package boolcfg\n\nimport (\n\t\"flag\"\n\t\"testing\"\n)\n\nfunc TestGeneratedBoolFlagRejectsGarbageObj(t *testing.T) {\n\tflagSet := flag.NewFlagSet(\"generated\", flag.ContinueOnError)\n\tflagSet.SetOutput(testWriterObj{t})\n\tRegisterFlags(flagSet)\n\tif err := flagSet.Parse([]string{\"-enabled=maybe\"}); err == nil {\n\t\tt.Fatalf(\"expected invalid bool error\")\n\t}\n}\n\ntype testWriterObj struct{ t *testing.T }\n\nfunc (obj testWriterObj) Write(data []byte) (int, error) { return len(data), nil }\n"
+	smokeText := "package boolcfg\n\nimport \"testing\"\n\nfunc TestGeneratedBoolFlagRejectsGarbageObj(t *testing.T) {\n\tobj := New()\n\tif err := ApplyCLI(&obj, []string{\"-enabled=maybe\"}); err == nil {\n\t\tt.Fatalf(\"expected invalid bool error\")\n\t}\n}\n"
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
@@ -353,9 +375,10 @@ func TestGeneratedParseAutoValidatesObj(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "server:\n  port:\n    type: int\n    value: 8080\n    min: 1\n    max: 65535\n"),
+		Schema:      writeSchemaObj(t, "server:\n  port:\n    type: int\n    value: 8080\n    min: 1\n    max: 65535\n"),
 		OutputDir:   outputPath,
 		PackageName: "validcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
@@ -364,8 +387,6 @@ func TestGeneratedParseAutoValidatesObj(t *testing.T) {
 	smokeText := `package validcfg
 
 import (
-	"flag"
-	"io"
 	"strings"
 	"testing"
 )
@@ -383,29 +404,30 @@ func TestGeneratedParseAutoValidatesObj(t *testing.T) {
 
 	for _, testCaseObj := range testCaseArr {
 		t.Run(testCaseObj.NameText, func(t *testing.T) {
-			parserObj, ok := ParserByName(testCaseObj.ParserText)
-			if !ok {
-				t.Fatalf("parser missing: %s", testCaseObj.ParserText)
-			}
-
-			_, err := parserObj.Parse([]byte(testCaseObj.DataText))
+			_, err := parseByNameObj(testCaseObj.ParserText, []byte(testCaseObj.DataText))
 			if err == nil || !strings.Contains(err.Error(), "field [server.port] must be <= 65535") {
 				t.Fatalf("expected validation error, got: %v", err)
 			}
 		})
 	}
 
-	flagSet := flag.NewFlagSet("generated", flag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	RegisterFlags(flagSet)
-	if err := flagSet.Parse([]string{"-server.port=70000"}); err != nil {
-		t.Fatalf("parse flags: %v", err)
-	}
-
 	obj := New()
-	err := ApplyFlags(&obj)
+	err := ApplyCLI(&obj, []string{"-server.port=70000"})
 	if err == nil || !strings.Contains(err.Error(), "field [server.port] must be <= 65535") {
 		t.Fatalf("expected cli validation error, got: %v", err)
+	}
+}
+
+func parseByNameObj(nameText string, dataArr []byte) (*ConfigObj, error) {
+	switch nameText {
+	case "yaml":
+		return parseYAMLBytes(dataArr, true)
+	case "json":
+		return parseJSONBytes(dataArr, true)
+	case "hjson":
+		return parseHJSONBytes(dataArr, true)
+	default:
+		return nil, nil
 	}
 }
 `
@@ -422,15 +444,16 @@ func TestGeneratedNumericFlagsRejectOverflowObj(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "small:\n  type: int8\n  value: 1\n"),
+		Schema:      writeSchemaObj(t, "small:\n  type: int8\n  value: 1\n"),
 		OutputDir:   outputPath,
 		PackageName: "smallcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
 	}
 
-	smokeText := "package smallcfg\n\nimport (\n\t\"flag\"\n\t\"testing\"\n)\n\nfunc TestGeneratedFlagOverflowObj(t *testing.T) {\n\tflagSet := flag.NewFlagSet(\"generated\", flag.ContinueOnError)\n\tRegisterFlags(flagSet)\n\tif err := flagSet.Parse([]string{\"-small=200\"}); err != nil {\n\t\tt.Fatalf(\"flag parse: %v\", err)\n\t}\n\tobj := New()\n\tif err := ApplyFlags(&obj); err == nil {\n\t\tt.Fatalf(\"expected overflow error\")\n\t}\n}\n"
+	smokeText := "package smallcfg\n\nimport \"testing\"\n\nfunc TestGeneratedFlagOverflowObj(t *testing.T) {\n\tobj := New()\n\tif err := ApplyCLI(&obj, []string{\"-small=200\"}); err == nil {\n\t\tt.Fatalf(\"expected overflow error\")\n\t}\n}\n"
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
@@ -444,9 +467,10 @@ func TestPreserveMixedSchemaOrderObj(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "alpha:\n  type: string\n  value: A\nbeta:\n  child:\n    type: string\n    value: B\nzeta:\n  type: string\n  value: Z\n"),
+		Schema:      writeSchemaObj(t, "alpha:\n  type: string\n  value: A\nbeta:\n  child:\n    type: string\n    value: B\nzeta:\n  type: string\n  value: Z\n"),
 		OutputDir:   outputPath,
 		PackageName: "ordercfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
@@ -466,15 +490,16 @@ func TestGeneratedFullPresetConsistencyObj(t *testing.T) {
 
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "items:\n  type: '[]string'\nlabels:\n  type: 'map[string]string'\n"),
+		Schema:      writeSchemaObj(t, "items:\n  type: '[]string'\nlabels:\n  type: 'map[string]string'\n"),
 		OutputDir:   outputPath,
 		PackageName: "presetcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
 	}
 
-	smokeText := "package presetcfg\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestGeneratedFullPresetConsistencyObj(t *testing.T) {\n\tfullObj, err := FullConfig()\n\tif err != nil {\n\t\tt.Fatalf(\"full config: %v\", err)\n\t}\n\tparserObj, ok := ParserByName(\"yaml\")\n\tif !ok {\n\t\tt.Fatalf(\"yaml parser missing\")\n\t}\n\tparsedObj, err := parserObj.Parse(FullYAML())\n\tif err != nil {\n\t\tt.Fatalf(\"parse full yaml: %v\", err)\n\t}\n\tif reflect.DeepEqual(*fullObj, *parsedObj) == false {\n\t\tt.Fatalf(\"full preset mismatch: %#v != %#v\", *fullObj, *parsedObj)\n\t}\n\tif fullObj.Items == nil || fullObj.Labels == nil {\n\t\tt.Fatalf(\"full preset must preserve explicit empty containers: %#v\", *fullObj)\n\t}\n}\n"
+	smokeText := "package presetcfg\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestGeneratedFullPresetConsistencyObj(t *testing.T) {\n\tfullObj := FullConfig()\n\tparsedObj, err := parseYAMLBytes(FullYAML(), true)\n\tif err != nil {\n\t\tt.Fatalf(\"parse full yaml: %v\", err)\n\t}\n\tif reflect.DeepEqual(*fullObj, *parsedObj) == false {\n\t\tt.Fatalf(\"full preset mismatch: %#v != %#v\", *fullObj, *parsedObj)\n\t}\n\tif fullObj.Items == nil || fullObj.Labels == nil {\n\t\tt.Fatalf(\"full preset must preserve explicit empty containers: %#v\", *fullObj)\n\t}\n}\n"
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
@@ -489,11 +514,11 @@ func TestSelectiveFormatsWithoutCLIObj(t *testing.T) {
 	withCLIFlag := false
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
-		SchemaPath:  writeSchemaObj(t, "service:\n  host:\n    type: string\n    value: localhost\n"),
+		Schema:      writeSchemaObj(t, "service:\n  host:\n    type: string\n    value: localhost\n"),
 		OutputDir:   outputPath,
 		PackageName: "yamlonlycfg",
 		Formats:     []string{"yaml"},
-		WithCLI:     &withCLIFlag,
+		Features:    FeaturesObj{CLI: &withCLIFlag},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run generator: %v", err)
@@ -512,7 +537,7 @@ func TestSelectiveFormatsWithoutCLIObj(t *testing.T) {
 		"\"flag\"",
 	})
 
-	smokeText := "package yamlonlycfg\n\nimport \"testing\"\n\nfunc TestGeneratedSelectiveFormatsObj(t *testing.T) {\n\tparserObj, ok := ParserByName(\"yaml\")\n\tif !ok {\n\t\tt.Fatalf(\"yaml parser missing\")\n\t}\n\tobj, err := parserObj.Parse([]byte(\"service:\\n  host: api\\n\"))\n\tif err != nil {\n\t\tt.Fatalf(\"parse yaml: %v\", err)\n\t}\n\tif obj.Service.Host != \"api\" {\n\t\tt.Fatalf(\"unexpected parsed host: %q\", obj.Service.Host)\n\t}\n\tif _, err = FullConfig(); err != nil {\n\t\tt.Fatalf(\"full config: %v\", err)\n\t}\n\tif string(FullYAML()) == \"\" {\n\t\tt.Fatalf(\"expected yaml preset\")\n\t}\n}\n"
+	smokeText := "package yamlonlycfg\n\nimport \"testing\"\n\nfunc TestGeneratedSelectiveFormatsObj(t *testing.T) {\n\tobj, err := parseYAMLBytes([]byte(\"service:\\n  host: api\\n\"), true)\n\tif err != nil {\n\t\tt.Fatalf(\"parse yaml: %v\", err)\n\t}\n\tif obj.Service.Host != \"api\" {\n\t\tt.Fatalf(\"unexpected parsed host: %q\", obj.Service.Host)\n\t}\n\tif FullConfig() == nil {\n\t\tt.Fatalf(\"expected full config\")\n\t}\n\tif string(FullYAML()) == \"\" {\n\t\tt.Fatalf(\"expected yaml preset\")\n\t}\n}\n"
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
@@ -524,12 +549,13 @@ func TestSelectiveGenerationRemovesStaleFilesObj(t *testing.T) {
 		t.Fatalf("read working directory: %v", err)
 	}
 
-	sourcePath := filepath.Join(repoRootPath, "examples", "source")
+	sourcePath := writeComplexSourceDirObj(t)
 	outputPath := filepath.Join(t.TempDir(), "generated")
 	if _, err = Run(ConfigObj{
 		SourceDir:   sourcePath,
 		OutputDir:   outputPath,
 		PackageName: "smallcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
 		Force:       true,
 	}); err != nil {
 		t.Fatalf("run full generator: %v", err)
@@ -537,33 +563,33 @@ func TestSelectiveGenerationRemovesStaleFilesObj(t *testing.T) {
 
 	falseFlag := false
 	if _, err = Run(ConfigObj{
-		SourceDir:      sourcePath,
-		OutputDir:      outputPath,
-		PackageName:    "smallcfg",
-		Formats:        []string{"yaml"},
-		WithCLI:        &falseFlag,
-		WithValidate:   &falseFlag,
-		WithRender:     &falseFlag,
-		WithPresets:    &falseFlag,
-		WithInterfaces: nil,
-		Force:          true,
+		SourceDir:   sourcePath,
+		OutputDir:   outputPath,
+		PackageName: "smallcfg",
+		Formats:     []string{"yaml"},
+		Features: FeaturesObj{
+			CLI:      &falseFlag,
+			Validate: &falseFlag,
+			Render:   &falseFlag,
+			Presets:  &falseFlag,
+		},
+		Force: true,
 	}); err != nil {
 		t.Fatalf("run selective generator: %v", err)
 	}
 
-	for _, relPath := range []string{"flags_gen.go", "parser_json_gen.go", "parser_hjson_gen.go", "parser_cli_gen.go", "presets_gen.go", "validate_gen.go"} {
+	for _, relPath := range []string{"cli.go", "parse_json.go", "parse_hjson.go", "render_yaml.go", "render_json.go", "render_hjson.go", "presets.go", "validate.go"} {
 		if _, statErr := os.Stat(filepath.Join(outputPath, relPath)); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("expected stale file removed [%s], stat error: %v", relPath, statErr)
 		}
 	}
 
-	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, "package smallcfg\n\nimport \"testing\"\n\nfunc TestSelectivePackageObj(t *testing.T) {\n\tif _, ok := ParserByName(\"yaml\"); !ok {\n\t\tt.Fatalf(\"yaml parser missing\")\n\t}\n\tif _, ok := ParserByName(\"json\"); ok {\n\t\tt.Fatalf(\"json parser must be absent\")\n\t}\n}\n")
+	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, "package smallcfg\n\nimport \"testing\"\n\nfunc TestSelectivePackageObj(t *testing.T) {\n\tif _, err := parseYAMLBytes([]byte(\"server:\\n  port: 9090\\n\"), true); err != nil {\n\t\tt.Fatalf(\"parse yaml: %v\", err)\n\t}\n}\n")
 }
 
-func assertDirLayoutObj(t *testing.T, expectedPath string, actualPath string) {
+func assertDirLayoutObj(t *testing.T, expectedRelPathArr []string, actualPath string) {
 	t.Helper()
 
-	expectedRelPathArr := collectRelPathArrObj(t, expectedPath)
 	actualRelPathArr := collectRelPathArrObj(t, actualPath)
 
 	if !equalStringArrObj(expectedRelPathArr, actualRelPathArr) {
@@ -588,7 +614,81 @@ func assertGeneratedHeaderSchemaObj(t *testing.T, outputPath string, expectedSch
 func assertGeneratedPackageObj(t *testing.T, repoRootPath string, outputPath string) {
 	t.Helper()
 
-	smokeText := "package complexcfg\n\nimport (\n\t\"bytes\"\n\t\"flag\"\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestGeneratedSmokeObj(t *testing.T) {\n\tobj := New()\n\tif err := obj.Validate(); err != nil {\n\t\tt.Fatalf(\"validate defaults: %v\", err)\n\t}\n\tif !HasMinimal() || !HasMedium() {\n\t\tt.Fatalf(\"expected optional presets\")\n\t}\n\tpresetObj, err := MediumConfig()\n\tif err != nil {\n\t\tt.Fatalf(\"medium preset parse: %v\", err)\n\t}\n\tif presetObj == nil || presetObj.Server.Port != 8443 {\n\t\tt.Fatalf(\"unexpected medium preset: %#v\", presetObj)\n\t}\n\tfullObj, err := FullConfig()\n\tif err != nil {\n\t\tt.Fatalf(\"full preset parse: %v\", err)\n\t}\n\tyamlParserObj, ok := ParserByName(\"yaml\")\n\tif !ok {\n\t\tt.Fatalf(\"yaml parser missing\")\n\t}\n\tfullFromYAMLObj, err := yamlParserObj.Parse(FullYAML())\n\tif err != nil {\n\t\tt.Fatalf(\"parse full yaml: %v\", err)\n\t}\n\tif reflect.DeepEqual(*fullObj, *fullFromYAMLObj) == false {\n\t\tt.Fatalf(\"full config mismatch: %#v != %#v\", *fullObj, *fullFromYAMLObj)\n\t}\n\tfullPresentArr, err := yamlParserObj.RenderPresent(fullObj)\n\tif err != nil {\n\t\tt.Fatalf(\"render full preset present: %v\", err)\n\t}\n\tif bytes.Equal(fullPresentArr, []byte(\"{}\\n\")) {\n\t\tt.Fatalf(\"full preset object lost presence information\")\n\t}\n\tif !bytes.Contains(FullHJSON(), []byte(\"# HTTP server settings.\")) {\n\t\tt.Fatalf(\"expected comments inside HJSON preset\")\n\t}\n\thjsonParserObj, ok := ParserByName(\"hjson\")\n\tif !ok {\n\t\tt.Fatalf(\"hjson parser missing\")\n\t}\n\tfullFromHJSONObj, err := hjsonParserObj.Parse(FullHJSON())\n\tif err != nil {\n\t\tt.Fatalf(\"parse full hjson: %v\", err)\n\t}\n\tif reflect.DeepEqual(*fullObj, *fullFromHJSONObj) == false {\n\t\tt.Fatalf(\"full hjson mismatch: %#v != %#v\", *fullObj, *fullFromHJSONObj)\n\t}\n\tjsonParserObj, ok := ParserByName(\"json\")\n\tif !ok {\n\t\tt.Fatalf(\"json parser missing\")\n\t}\n\tdataArr, err := jsonParserObj.Render(&obj)\n\tif err != nil {\n\t\tt.Fatalf(\"render json: %v\", err)\n\t}\n\tparsedObj, err := jsonParserObj.Parse(dataArr)\n\tif err != nil {\n\t\tt.Fatalf(\"parse rendered json: %v\", err)\n\t}\n\tif parsedObj.Server.Port != obj.Server.Port {\n\t\tt.Fatalf(\"roundtrip port mismatch: %d != %d\", parsedObj.Server.Port, obj.Server.Port)\n\t}\n\tflagSet := flag.NewFlagSet(\"generated\", flag.ContinueOnError)\n\tRegisterFlags(flagSet)\n\tif err = flagSet.Parse([]string{\"-server.port=9090\", \"-features.enabled=extra_a,extra_b\"}); err != nil {\n\t\tt.Fatalf(\"flag parse: %v\", err)\n\t}\n\tcliObj := New()\n\tif err = ApplyFlags(&cliObj); err != nil {\n\t\tt.Fatalf(\"apply flags: %v\", err)\n\t}\n\tif cliObj.Server.Port != 9090 {\n\t\tt.Fatalf(\"cli override did not apply\")\n\t}\n\tif !reflect.DeepEqual(cliObj.Features.Enabled, []string{\"extra_a\", \"extra_b\"}) {\n\t\tt.Fatalf(\"array replace semantics mismatch: %#v\", cliObj.Features.Enabled)\n\t}\n\tsecondFlagSet := flag.NewFlagSet(\"second\", flag.ContinueOnError)\n\tRegisterFlags(secondFlagSet)\n\tif err = secondFlagSet.Parse([]string{}); err != nil {\n\t\tt.Fatalf(\"second flag parse: %v\", err)\n\t}\n\tsecondObj := New()\n\tif err = ApplyFlags(&secondObj); err != nil {\n\t\tt.Fatalf(\"second apply flags: %v\", err)\n\t}\n\tif secondObj.Server.Port != 8080 {\n\t\tt.Fatalf(\"flag state leaked between registrations: %d\", secondObj.Server.Port)\n\t}\n}\n"
+	smokeText := `package complexcfg
+
+import (
+	"bytes"
+	"reflect"
+	"testing"
+)
+
+func TestGeneratedSmokeObj(t *testing.T) {
+	obj := New()
+	if err := obj.Validate(); err != nil {
+		t.Fatalf("validate defaults: %v", err)
+	}
+	if !HasMinimal() || !HasMedium() {
+		t.Fatalf("expected optional presets")
+	}
+	presetObj := MediumConfig()
+	if presetObj == nil || presetObj.Server.Port != 8443 {
+		t.Fatalf("unexpected medium preset: %#v", presetObj)
+	}
+	fullObj := FullConfig()
+	fullFromYAMLObj, err := parseYAMLBytes(FullYAML(), true)
+	if err != nil {
+		t.Fatalf("parse full yaml: %v", err)
+	}
+	if reflect.DeepEqual(*fullObj, *fullFromYAMLObj) == false {
+		t.Fatalf("full config mismatch: %#v != %#v", *fullObj, *fullFromYAMLObj)
+	}
+	fullPresentArr, err := fullObj.RenderYAML(true)
+	if err != nil {
+		t.Fatalf("render full preset present: %v", err)
+	}
+	if bytes.Equal(fullPresentArr, []byte("{}\n")) {
+		t.Fatalf("full preset object lost presence information")
+	}
+	if !bytes.Contains(FullHJSON(), []byte("# HTTP server settings.")) {
+		t.Fatalf("expected comments inside HJSON preset")
+	}
+	fullFromHJSONObj, err := parseHJSONBytes(FullHJSON(), true)
+	if err != nil {
+		t.Fatalf("parse full hjson: %v", err)
+	}
+	if reflect.DeepEqual(*fullObj, *fullFromHJSONObj) == false {
+		t.Fatalf("full hjson mismatch: %#v != %#v", *fullObj, *fullFromHJSONObj)
+	}
+	dataArr, err := obj.RenderJSON(false)
+	if err != nil {
+		t.Fatalf("render json: %v", err)
+	}
+	parsedObj, err := parseJSONBytes(dataArr, true)
+	if err != nil {
+		t.Fatalf("parse rendered json: %v", err)
+	}
+	if parsedObj.Server.Port != obj.Server.Port {
+		t.Fatalf("roundtrip port mismatch: %d != %d", parsedObj.Server.Port, obj.Server.Port)
+	}
+	cliObj := New()
+	if err = ApplyCLI(&cliObj, []string{"-server.port=9090", "-features.enabled=extra_a,extra_b"}); err != nil {
+		t.Fatalf("apply cli: %v", err)
+	}
+	if cliObj.Server.Port != 9090 {
+		t.Fatalf("cli override did not apply")
+	}
+	if !reflect.DeepEqual(cliObj.Features.Enabled, []string{"extra_a", "extra_b"}) {
+		t.Fatalf("array replace semantics mismatch: %#v", cliObj.Features.Enabled)
+	}
+	secondObj := New()
+	if err = ApplyCLI(&secondObj, []string{}); err != nil {
+		t.Fatalf("second apply cli: %v", err)
+	}
+	if secondObj.Server.Port != 8080 {
+		t.Fatalf("flag state leaked between applications: %d", secondObj.Server.Port)
+	}
+}
+`
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
@@ -719,6 +819,111 @@ func writeSchemaObj(t *testing.T, schemaText string) string {
 	}
 
 	return schemaPath
+}
+
+func writeComplexSourceDirObj(t *testing.T) string {
+	t.Helper()
+
+	sourcePath := filepath.Join(t.TempDir(), "source")
+	if err := os.MkdirAll(sourcePath, 0o755); err != nil {
+		t.Fatalf("create source dir: %v", err)
+	}
+
+	fileTextMap := map[string]string{
+		"config.yml": `server:
+  usage:
+    - HTTP server settings.
+    - Exercises generated comments and interfaces.
+  gen_interface: true
+  host:
+    type: string
+    usage: Listen host.
+    value: 127.0.0.1
+  port:
+    type: int
+    usage: Listen port.
+    value: 8080
+    min: 1
+    max: 65535
+  secure:
+    type: bool
+    usage: Enable TLS.
+    value: false
+
+logging:
+  usage: Logging settings.
+  level:
+    enum: [ debug, info, warn, error ]
+    usage: Minimum log level.
+    value: info
+  outputs:
+    type: "[]enum"
+    enum: [ console, json ]
+    usage: Ordered logging sinks.
+    value: [ console ]
+
+features:
+  usage: Feature toggles.
+  enabled:
+    type: "[]string"
+    usage: Enabled feature keys.
+    value: [ metrics, tracing ]
+  rollout:
+    type: "map[string][]string"
+    usage: Per-environment rollout list.
+    value:
+      prod: [ metrics ]
+      stage: [ metrics, tracing ]
+
+labels:
+  usage: Static metadata labels.
+  common:
+    type: "map[string]string"
+    usage: Common labels.
+    value:
+      env: dev
+      team: platform
+
+extensions:
+  usage: Arbitrary extension payload.
+  raw:
+    type: "map[string]any"
+    usage: Extra unstructured payload.
+    value:
+      nested:
+        retries: 3
+        mode: safe
+`,
+		"minimal.yml": `server:
+  host: 0.0.0.0
+  port: 8080
+
+logging:
+  level: warn
+`,
+		"medium.yml": `server:
+  host: 0.0.0.0
+  port: 8443
+  secure: true
+
+logging:
+  level: info
+  outputs: [ console, json ]
+
+labels:
+  common:
+    env: stage
+    team: platform
+`,
+	}
+
+	for nameText, fileText := range fileTextMap {
+		if err := os.WriteFile(filepath.Join(sourcePath, nameText), []byte(fileText), 0o644); err != nil {
+			t.Fatalf("write source file [%s]: %v", nameText, err)
+		}
+	}
+
+	return sourcePath
 }
 
 func collectRelPathArrObj(t *testing.T, rootPath string) []string {

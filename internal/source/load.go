@@ -8,15 +8,17 @@ import (
 // // // // // // // // // //
 
 type ConfigObj struct {
-	SchemaPath  string
-	MinimalPath string
-	MediumPath  string
+	SchemaPath    string
+	MinimalPath   string
+	MediumPath    string
+	PresetPathMap map[string]string
 }
 
 type ResultObj struct {
-	SchemaText  string
-	MinimalText string
-	MediumText  string
+	SchemaText    string
+	MinimalText   string
+	MediumText    string
+	PresetTextMap map[string]string
 }
 
 // //
@@ -28,7 +30,8 @@ func Load(config ConfigObj) (*ResultObj, error) {
 	}
 
 	resultObj := &ResultObj{
-		SchemaText: string(schemaArr),
+		SchemaText:    string(schemaArr),
+		PresetTextMap: make(map[string]string, len(config.PresetPathMap)),
 	}
 
 	if config.MinimalPath != "" {
@@ -47,6 +50,15 @@ func Load(config ConfigObj) (*ResultObj, error) {
 		}
 
 		resultObj.MediumText = string(dataArr)
+	}
+
+	for nameText, pathText := range config.PresetPathMap {
+		dataArr, readErr := os.ReadFile(pathText)
+		if readErr != nil {
+			return nil, fmt.Errorf("read preset [%s] file: %w", nameText, readErr)
+		}
+
+		resultObj.PresetTextMap[nameText] = string(dataArr)
 	}
 
 	return resultObj, nil

@@ -30,7 +30,8 @@ func runCLI(argsArr []string) error {
 	flagSet.SetOutput(os.Stderr)
 
 	config := goconfgen.ConfigObj{}
-	formatText := ""
+	formatText := "yaml,json,hjson"
+	presetFlagObj := presetFlagObj{}
 	withCLIFlag := true
 	withValidateFlag := true
 	withRenderFlag := true
@@ -38,15 +39,14 @@ func runCLI(argsArr []string) error {
 	withInterfacesFlag := true
 
 	flagSet.StringVar(&config.SourceDir, "source", "", "source directory that contains config.yml and optional presets")
-	flagSet.StringVar(&config.SchemaPath, "schema", "", "explicit schema file path")
-	flagSet.StringVar(&config.MinimalPath, "minimal", "", "explicit minimal preset file path")
-	flagSet.StringVar(&config.MediumPath, "medium", "", "explicit medium preset file path")
+	flagSet.StringVar(&config.Schema, "schema", "", "explicit schema file path")
 	flagSet.StringVar(&config.OutputDir, "out", "", "output directory for generated files")
 	flagSet.StringVar(&config.PackageName, "pkg", "", "package name for generated runtime code")
-	flagSet.StringVar(&formatText, "formats", "", "comma-separated subset of yaml,json,hjson; empty keeps all formats")
+	flagSet.StringVar(&formatText, "formats", formatText, "comma-separated subset of yaml,json,hjson")
+	flagSet.Var(&presetFlagObj, "preset", "preset in NAME=PATH form; may be repeated")
 	flagSet.BoolVar(&withCLIFlag, "with-cli", true, "generate CLI flag helpers")
 	flagSet.BoolVar(&withValidateFlag, "with-validate", true, "generate validation helpers")
-	flagSet.BoolVar(&withRenderFlag, "with-render", true, "generate render methods on parser objects")
+	flagSet.BoolVar(&withRenderFlag, "with-render", true, "generate render methods")
 	flagSet.BoolVar(&withPresetsFlag, "with-presets", true, "generate embedded preset helpers")
 	flagSet.BoolVar(&withInterfacesFlag, "with-interfaces", true, "generate schema-requested interfaces")
 	flagSet.BoolVar(&config.Force, "force", false, "create missing output directories and overwrite existing generated files")
@@ -59,11 +59,12 @@ func runCLI(argsArr []string) error {
 	}
 
 	config.Formats = parseFormatsArg(formatText)
-	config.WithCLI = &withCLIFlag
-	config.WithValidate = &withValidateFlag
-	config.WithRender = &withRenderFlag
-	config.WithPresets = &withPresetsFlag
-	config.WithInterfaces = &withInterfacesFlag
+	config.Presets = presetFlagObj.ValueMap
+	config.Features.CLI = &withCLIFlag
+	config.Features.Validate = &withValidateFlag
+	config.Features.Render = &withRenderFlag
+	config.Features.Presets = &withPresetsFlag
+	config.Features.Interfaces = &withInterfacesFlag
 
 	resultObj, err := goconfgen.Run(config)
 	if err != nil {
@@ -103,4 +104,39 @@ func parseFormatsArg(textValue string) []string {
 	}
 
 	return resultArr
+}
+
+type presetFlagObj struct {
+	ValueMap map[string]string
+}
+
+func (obj *presetFlagObj) String() string {
+	if obj == nil || len(obj.ValueMap) == 0 {
+		return ""
+	}
+	partTextArr := make([]string, 0, len(obj.ValueMap))
+	for nameText, pathText := range obj.ValueMap {
+		partTextArr = append(partTextArr, nameText+"="+pathText)
+	}
+	return strings.Join(partTextArr, ",")
+}
+
+func (obj *presetFlagObj) Set(valueText string) error {
+	partTextArr := strings.SplitN(valueText, "=", 2)
+	if len(partTextArr) != 2 {
+		return fmt.Errorf("preset must use NAME=PATH form")
+	}
+	nameText := strings.TrimSpace(partTextArr[0])
+	pathText := strings.TrimSpace(partTextArr[1])
+	if nameText == "" || pathText == "" {
+		return fmt.Errorf("preset name and path must not be empty")
+	}
+	if obj.ValueMap == nil {
+		obj.ValueMap = map[string]string{}
+	}
+	if _, existsFlag := obj.ValueMap[nameText]; existsFlag {
+		return fmt.Errorf("preset [%s] is specified more than once", nameText)
+	}
+	obj.ValueMap[nameText] = pathText
+	return nil
 }
