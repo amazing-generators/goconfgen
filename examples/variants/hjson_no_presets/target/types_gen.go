@@ -93,7 +93,7 @@ type ServerObj struct {
 
 type LoggingObj struct {
 	// Minimum log level.
-	Level LoggingLevelEnum
+	Level GlobalLogEnum
 	// Ordered logging sinks.
 	Outputs []LoggingOutputsEnum
 }

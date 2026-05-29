@@ -270,6 +270,11 @@ func validateGeneratedNamespace(rootObj *BranchObj, fieldObjArr []*FieldObj) err
 			if err := claimName(typeByNameMap, fieldObj.EnumObj.TypeName, fieldObj.PathText, "generated enum type"); err != nil {
 				return err
 			}
+			for _, constNameText := range fieldObj.EnumObj.ConstNameArr {
+				if err := claimName(typeByNameMap, constNameText, fieldObj.PathText, "generated enum constant"); err != nil {
+					return err
+				}
+			}
 		}
 
 		if err := claimName(flagVarByNameMap, fieldFlagVarName(fieldObj.PathText), fieldObj.PathText, "generated flag variable"); err != nil {

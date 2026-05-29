@@ -13,6 +13,7 @@ import (
 type rawLeafObj struct {
 	TypeText         string
 	UsageText        string
+	EnumNameText     string
 	EnumValueTextArr []string
 	DefaultNodeObj   *yaml.Node
 	MinText          string
@@ -184,6 +185,13 @@ func extractLeaf(pathText string, nodeObj *yaml.Node) (*rawLeafObj, bool, error)
 
 			resultObj.EnumValueTextArr = enumValueTextArr
 			hasLeafMarkerFlag = true
+		case "enum_name":
+			if valueNodeObj.Kind != yaml.ScalarNode {
+				return nil, false, fmt.Errorf("schema node [%s] enum_name must be scalar", pathText)
+			}
+
+			resultObj.EnumNameText = strings.TrimSpace(valueNodeObj.Value)
+			hasLeafMarkerFlag = true
 		case "usage":
 			// usage допустим и на ветке, и на листе; решение о виде узла не зависит от него.
 			usageText, err := decodeUsage(valueNodeObj)
@@ -221,6 +229,10 @@ func extractLeaf(pathText string, nodeObj *yaml.Node) (*rawLeafObj, bool, error)
 }
 
 func buildLeaf(pathText string, keyText string, rawLeafObj *rawLeafObj) (*LeafObj, error) {
+	if rawLeafObj.EnumNameText != "" && len(rawLeafObj.EnumValueTextArr) == 0 {
+		return nil, fmt.Errorf("schema node [%s] enum_name requires enum", pathText)
+	}
+
 	typeObj, err := ParseType(rawLeafObj.TypeText, rawLeafObj.EnumValueTextArr)
 	if err != nil {
 		return nil, fmt.Errorf("schema node [%s] type: %w", pathText, err)
@@ -235,7 +247,12 @@ func buildLeaf(pathText string, keyText string, rawLeafObj *rawLeafObj) (*LeafOb
 	}
 
 	if len(rawLeafObj.EnumValueTextArr) > 0 {
-		leafObj.EnumObj = BuildEnum(pathText, rawLeafObj.UsageText, rawLeafObj.EnumValueTextArr)
+		enumObj, enumErr := BuildEnum(pathText, rawLeafObj.UsageText, rawLeafObj.EnumNameText, rawLeafObj.EnumValueTextArr)
+		if enumErr != nil {
+			return nil, enumErr
+		}
+
+		leafObj.EnumObj = enumObj
 	}
 
 	if rawLeafObj.MinText != "" {

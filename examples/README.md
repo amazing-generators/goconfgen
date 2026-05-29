@@ -7,6 +7,8 @@ All generated examples in this directory use the same source files:
 - `source/medium.yml`
 
 The generated packages are intentionally checked in so output differences between generation modes are easy to inspect.
+The source schema also demonstrates explicit enum naming with `enum_name: global-log`, which becomes `GlobalLogEnum`
+and constants such as `GlobalLogWarn`.
 
 ## Full complex example
 

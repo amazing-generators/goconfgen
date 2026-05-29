@@ -44,6 +44,7 @@ type RangeObj struct {
 
 type EnumObj struct {
 	PathText     string
+	NameText     string
 	TypeName     string
 	UsageText    string
 	ValueTextArr []string

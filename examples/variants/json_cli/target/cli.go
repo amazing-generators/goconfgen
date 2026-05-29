@@ -89,7 +89,7 @@ func (obj *cliFlagsObj) applyFlags(cfgObj *ConfigObj) error {
 	if obj.cFlagLoggingLevelObj.IsSeen() {
 		valueText := obj.cFlagLoggingLevelObj.Text()
 
-		parsedValue, err := ParseLoggingLevelEnum(strings.TrimSpace(valueText))
+		parsedValue, err := ParseGlobalLogEnum(strings.TrimSpace(valueText))
 		if err != nil {
 			return err
 		}

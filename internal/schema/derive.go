@@ -1,6 +1,9 @@
 package schema
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // // // // // // // // // //
 
@@ -49,4 +52,52 @@ func GoTypeName(pathText string) string {
 	}
 
 	return builder.String()
+}
+
+func goExportedNameStrict(textValue string) (string, error) {
+	textValue = strings.TrimSpace(textValue)
+	if textValue == "" {
+		return "", fmt.Errorf("name must not be empty")
+	}
+
+	var builder strings.Builder
+	upperFlag := true
+	hasNameFlag := false
+
+	for _, itemRune := range textValue {
+		switch {
+		case itemRune >= 'a' && itemRune <= 'z':
+			if upperFlag {
+				builder.WriteRune(itemRune - 32)
+			} else {
+				builder.WriteRune(itemRune)
+			}
+			upperFlag = false
+			hasNameFlag = true
+		case itemRune >= 'A' && itemRune <= 'Z':
+			if upperFlag {
+				builder.WriteRune(itemRune)
+			} else {
+				builder.WriteRune(itemRune + 32)
+			}
+			upperFlag = false
+			hasNameFlag = true
+		case itemRune >= '0' && itemRune <= '9':
+			if !hasNameFlag {
+				return "", fmt.Errorf("name must start with ASCII letter after normalization")
+			}
+
+			builder.WriteRune(itemRune)
+			upperFlag = true
+			hasNameFlag = true
+		default:
+			upperFlag = true
+		}
+	}
+
+	if builder.Len() == 0 {
+		return "", fmt.Errorf("name has no ASCII letters or digits")
+	}
+
+	return builder.String(), nil
 }

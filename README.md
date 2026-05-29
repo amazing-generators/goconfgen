@@ -173,7 +173,8 @@ The input schema is YAML with two node kinds:
 Branch nodes may contain nested branches, leaf nodes, `usage`, and
 `gen_interface`.
 
-Leaf nodes may contain `type`, `usage`, `value`, `min`, `max`, and `enum`.
+Leaf nodes may contain `type`, `usage`, `value`, `min`, `max`, `enum`, and
+optional `enum_name`.
 
 Example:
 
@@ -219,6 +220,10 @@ Strict schema rules:
 - duplicate mapping keys fail generation
 - branch/leaf mixed metadata fails generation
 - enum values must be non-empty and unique
+- `enum_name` is normalized as an exported Go name; separators such as spaces
+  and punctuation split words
+- `enum_name` must start with an ASCII letter after normalization
+- enum value `enum` is reserved because it would collide with the enum type
 - enum defaults must match declared enum values
 - `min` / `max` are supported only for scalar fields
 - generated Go name collisions fail generation
@@ -527,9 +532,15 @@ Schema:
 ```yaml
 logging:
   level:
+    enum_name: global-log
     enum: [ debug, info, warn, error ]
     value: info
 ```
+
+With `enum_name: global-log`, the generated type is `GlobalLogEnum` and values
+are named `GlobalLogDebug`, `GlobalLogInfo`, `GlobalLogWarn`, and
+`GlobalLogError`. When `enum_name` is omitted, names are derived from the schema
+path as before.
 
 Generated enum behavior:
 

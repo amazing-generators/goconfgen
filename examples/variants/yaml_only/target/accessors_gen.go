@@ -101,7 +101,7 @@ func (obj *ConfigObj) ApplyDefaults() {
 	obj.setServerHost("127.0.0.1", fieldOriginDefault)
 	obj.setServerPort(8080, fieldOriginDefault)
 	obj.setServerSecure(false, fieldOriginDefault)
-	obj.setLoggingLevel(LoggingLevelInfo, fieldOriginDefault)
+	obj.setLoggingLevel(GlobalLogInfo, fieldOriginDefault)
 	obj.setLoggingOutputs([]LoggingOutputsEnum{LoggingOutputsConsole}, fieldOriginDefault)
 	obj.setLimitsTimeout(time.Duration(15000000000), fieldOriginDefault)
 	obj.setLimitsBodyMax(SizeObj(8388608), fieldOriginDefault)
@@ -137,7 +137,7 @@ func (obj *ConfigObj) setServerSecure(valueObj bool, originObj fieldOriginObj) {
 	obj.markOrigin("server.secure", originObj)
 }
 
-func (obj *ConfigObj) setLoggingLevel(valueObj LoggingLevelEnum, originObj fieldOriginObj) {
+func (obj *ConfigObj) setLoggingLevel(valueObj GlobalLogEnum, originObj fieldOriginObj) {
 	if !obj.canApplyOrigin("logging.level", originObj) {
 		return
 	}

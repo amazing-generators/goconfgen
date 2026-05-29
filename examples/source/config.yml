@@ -21,6 +21,7 @@ server:
 logging:
   usage: Logging settings.
   level:
+    enum_name: global-log
     enum: [ debug, info, warn, error ]
     usage: Minimum log level.
     value: info

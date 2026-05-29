@@ -10,59 +10,59 @@ import (
 
 // // // // // // // // // //
 // Minimum log level.
-type LoggingLevelEnum uint16
+type GlobalLogEnum uint16
 
 const (
-	LoggingLevelDebug LoggingLevelEnum = iota
-	LoggingLevelInfo
-	LoggingLevelWarn
-	LoggingLevelError
+	GlobalLogDebug GlobalLogEnum = iota
+	GlobalLogInfo
+	GlobalLogWarn
+	GlobalLogError
 )
 
-var cLoggingLevelEnumNameArr = []string{"debug", "info", "warn", "error"}
+var cGlobalLogEnumNameArr = []string{"debug", "info", "warn", "error"}
 
-func (obj LoggingLevelEnum) String() string {
+func (obj GlobalLogEnum) String() string {
 	index := int(obj)
-	if index < 0 || index >= len(cLoggingLevelEnumNameArr) {
+	if index < 0 || index >= len(cGlobalLogEnumNameArr) {
 		return "unknown"
 	}
-	return cLoggingLevelEnumNameArr[index]
+	return cGlobalLogEnumNameArr[index]
 }
 
-func (obj LoggingLevelEnum) IsValid() bool {
+func (obj GlobalLogEnum) IsValid() bool {
 	index := int(obj)
-	return index >= 0 && index < len(cLoggingLevelEnumNameArr)
+	return index >= 0 && index < len(cGlobalLogEnumNameArr)
 }
 
-func ParseLoggingLevelEnum(text string) (LoggingLevelEnum, error) {
+func ParseGlobalLogEnum(text string) (GlobalLogEnum, error) {
 	if text == "debug" {
-		return LoggingLevelDebug, nil
+		return GlobalLogDebug, nil
 	}
 	if text == "info" {
-		return LoggingLevelInfo, nil
+		return GlobalLogInfo, nil
 	}
 	if text == "warn" {
-		return LoggingLevelWarn, nil
+		return GlobalLogWarn, nil
 	}
 	if text == "error" {
-		return LoggingLevelError, nil
+		return GlobalLogError, nil
 	}
 	return 0, fmt.Errorf("unsupported enum value: %s", text)
 }
 
-func LoggingLevelEnumValueArr() []string {
-	return append([]string(nil), cLoggingLevelEnumNameArr...)
+func GlobalLogEnumValueArr() []string {
+	return append([]string(nil), cGlobalLogEnumNameArr...)
 }
 
-func (obj LoggingLevelEnum) MarshalText() ([]byte, error) {
+func (obj GlobalLogEnum) MarshalText() ([]byte, error) {
 	if !obj.IsValid() {
 		return nil, fmt.Errorf("invalid enum value: %d", obj)
 	}
 	return []byte(obj.String()), nil
 }
 
-func (obj *LoggingLevelEnum) UnmarshalText(data []byte) error {
-	value, err := ParseLoggingLevelEnum(string(data))
+func (obj *GlobalLogEnum) UnmarshalText(data []byte) error {
+	value, err := ParseGlobalLogEnum(string(data))
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (obj *LoggingLevelEnum) UnmarshalText(data []byte) error {
 	return nil
 }
 
-func (obj LoggingLevelEnum) MarshalJSON() ([]byte, error) {
+func (obj GlobalLogEnum) MarshalJSON() ([]byte, error) {
 	textArr, err := obj.MarshalText()
 	if err != nil {
 		return nil, err
@@ -78,7 +78,7 @@ func (obj LoggingLevelEnum) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(textArr))
 }
 
-func (obj *LoggingLevelEnum) UnmarshalJSON(data []byte) error {
+func (obj *GlobalLogEnum) UnmarshalJSON(data []byte) error {
 	var text string
 	if err := json.Unmarshal(data, &text); err != nil {
 		return err

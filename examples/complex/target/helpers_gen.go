@@ -129,12 +129,12 @@ func applyMapLoggingObj(valueMap map[string]any, obj *ConfigObj, originObj field
 
 			switch typedValue := valueObj.(type) {
 			case string:
-				parsedValue, err := ParseLoggingLevelEnum(strings.TrimSpace(typedValue))
+				parsedValue, err := ParseGlobalLogEnum(strings.TrimSpace(typedValue))
 				if err != nil {
 					return fmt.Errorf("field [logging.level]: %w", err)
 				}
 				obj.setLoggingLevel(parsedValue, originObj)
-			case LoggingLevelEnum:
+			case GlobalLogEnum:
 				obj.setLoggingLevel(typedValue, originObj)
 			default:
 				return fmt.Errorf("field [logging.level] unsupported type %T", valueObj)

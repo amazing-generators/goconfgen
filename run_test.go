@@ -304,6 +304,59 @@ func TestRejectInvalidSchemaKeysObj(t *testing.T) {
 	}
 }
 
+func TestEnumNameOverrideObj(t *testing.T) {
+	t.Helper()
+
+	repoRootPath, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("read working directory: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "generated")
+	if _, err = Run(ConfigObj{
+		Schema:      writeSchemaObj(t, "level:\n  enum_name: global-log\n  enum: [ warn, error ]\n  value: warn\n"),
+		OutputDir:   outputPath,
+		PackageName: "enumcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
+		Force:       true,
+	}); err != nil {
+		t.Fatalf("run generator: %v", err)
+	}
+
+	smokeText := "package enumcfg\n\nimport \"testing\"\n\nfunc TestGeneratedEnumNameOverrideObj(t *testing.T) {\n\tobj := New()\n\tif obj.Level != GlobalLogWarn {\n\t\tt.Fatalf(\"unexpected default enum: %v\", obj.Level)\n\t}\n\tparsedObj, err := parseYAMLBytes([]byte(\"level: error\\n\"), true)\n\tif err != nil {\n\t\tt.Fatalf(\"parse yaml: %v\", err)\n\t}\n\tif parsedObj.Level != GlobalLogError {\n\t\tt.Fatalf(\"unexpected parsed enum: %v\", parsedObj.Level)\n\t}\n\tif _, err = ParseGlobalLogEnum(\"warn\"); err != nil {\n\t\tt.Fatalf(\"parse enum helper: %v\", err)\n\t}\n}\n"
+	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
+}
+
+func TestRejectInvalidEnumNameObj(t *testing.T) {
+	t.Helper()
+
+	_, err := Run(ConfigObj{
+		Schema:      writeSchemaObj(t, "level:\n  enum_name: \"--- 123-log\"\n  enum: [ warn ]\n  value: warn\n"),
+		OutputDir:   filepath.Join(t.TempDir(), "generated"),
+		PackageName: "badcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
+		Force:       true,
+	})
+	if err == nil || strings.Contains(err.Error(), "name must start with ASCII letter") == false {
+		t.Fatalf("expected enum_name leading digit error, got: %v", err)
+	}
+}
+
+func TestRejectEnumValueNamedEnumObj(t *testing.T) {
+	t.Helper()
+
+	_, err := Run(ConfigObj{
+		Schema:      writeSchemaObj(t, "level:\n  enum_name: global-log\n  enum: [ enum ]\n  value: enum\n"),
+		OutputDir:   filepath.Join(t.TempDir(), "generated"),
+		PackageName: "badcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
+		Force:       true,
+	})
+	if err == nil || strings.Contains(err.Error(), "enum value [enum] is reserved") == false {
+		t.Fatalf("expected reserved enum value error, got: %v", err)
+	}
+}
+
 func TestRejectFloat32DefaultOverflowObj(t *testing.T) {
 	t.Helper()
 
@@ -853,6 +906,7 @@ func writeComplexSourceDirObj(t *testing.T) string {
 logging:
   usage: Logging settings.
   level:
+    enum_name: global-log
     enum: [ debug, info, warn, error ]
     usage: Minimum log level.
     value: info

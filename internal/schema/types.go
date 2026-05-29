@@ -100,25 +100,56 @@ func ParseType(typeText string, enumValueTextArr []string) (TypeObj, error) {
 	return TypeObj{}, fmt.Errorf("unsupported type: %s", typeText)
 }
 
-func BuildEnum(pathText string, usageText string, valueTextArr []string) *EnumObj {
+func BuildEnum(pathText string, usageText string, nameText string, valueTextArr []string) (*EnumObj, error) {
+	baseNameText, err := buildEnumBaseName(pathText, nameText)
+	if err != nil {
+		return nil, fmt.Errorf("schema node [%s] enum_name: %w", pathText, err)
+	}
+
+	constNameArr, err := buildEnumConstNameArr(pathText, baseNameText, valueTextArr)
+	if err != nil {
+		return nil, err
+	}
+
 	return &EnumObj{
 		PathText:     pathText,
-		TypeName:     GoName(pathText) + "Enum",
+		NameText:     baseNameText,
+		TypeName:     baseNameText + "Enum",
 		UsageText:    strings.TrimSpace(usageText),
 		ValueTextArr: append([]string(nil), valueTextArr...),
-		ConstNameArr: buildEnumConstNameArr(pathText, valueTextArr),
-	}
+		ConstNameArr: constNameArr,
+	}, nil
 }
 
-func buildEnumConstNameArr(pathText string, valueTextArr []string) []string {
-	prefixText := GoName(pathText)
-	resultArr := make([]string, 0, len(valueTextArr))
-
-	for _, valueText := range valueTextArr {
-		resultArr = append(resultArr, prefixText+GoName(valueText))
+func buildEnumBaseName(pathText string, nameText string) (string, error) {
+	nameText = strings.TrimSpace(nameText)
+	if nameText == "" {
+		return GoName(pathText), nil
 	}
 
-	return resultArr
+	return goExportedNameStrict(nameText)
+}
+
+func buildEnumConstNameArr(pathText string, prefixText string, valueTextArr []string) ([]string, error) {
+	resultArr := make([]string, 0, len(valueTextArr))
+	seenMap := make(map[string]string, len(valueTextArr))
+
+	for _, valueText := range valueTextArr {
+		valueNameText := GoName(valueText)
+		if valueNameText == "Enum" {
+			return nil, fmt.Errorf("schema node [%s] enum value [%s] is reserved", pathText, valueText)
+		}
+
+		constNameText := prefixText + valueNameText
+		if previousValueText, existsFlag := seenMap[constNameText]; existsFlag {
+			return nil, fmt.Errorf("schema node [%s] enum constant collision: [%s] conflicts with [%s] via [%s]", pathText, valueText, previousValueText, constNameText)
+		}
+
+		seenMap[constNameText] = valueText
+		resultArr = append(resultArr, constNameText)
+	}
+
+	return resultArr, nil
 }
 
 func ParseRange(typeObj TypeObj, textValue string) (*RangeObj, error) {
