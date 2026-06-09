@@ -92,6 +92,93 @@ func (obj *ConfigObj) mergeFrom(otherObj *ConfigObj) {
 	if originObj, existsFlag := otherObj.originOf("extensions.raw"); existsFlag && originObj >= fieldOriginFile {
 		obj.setExtensionsRaw(otherObj.Extensions.Raw, originObj)
 	}
+	if originObj, existsFlag := otherObj.originOf("numbers.i8"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersI8(otherObj.Numbers.I8, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.i16"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersI16(otherObj.Numbers.I16, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.i32"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersI32(otherObj.Numbers.I32, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.i64"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersI64(otherObj.Numbers.I64, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.u"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersU(otherObj.Numbers.U, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.u8"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersU8(otherObj.Numbers.U8, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.u16"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersU16(otherObj.Numbers.U16, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.u32"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersU32(otherObj.Numbers.U32, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.u64"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersU64(otherObj.Numbers.U64, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.f"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersF(otherObj.Numbers.F, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.f32"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersF32(otherObj.Numbers.F32, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.f64"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersF64(otherObj.Numbers.F64, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("numbers.dur_alias"); existsFlag && originObj >= fieldOriginFile {
+		obj.setNumbersDurAlias(otherObj.Numbers.DurAlias, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.bools"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysBools(otherObj.Arrays.Bools, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.ints"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysInts(otherObj.Arrays.Ints, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.i8s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysI8S(otherObj.Arrays.I8S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.i16s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysI16S(otherObj.Arrays.I16S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.i32s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysI32S(otherObj.Arrays.I32S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.i64s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysI64S(otherObj.Arrays.I64S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.us"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysUs(otherObj.Arrays.Us, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.u8s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysU8S(otherObj.Arrays.U8S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.u16s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysU16S(otherObj.Arrays.U16S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.u32s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysU32S(otherObj.Arrays.U32S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.u64s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysU64S(otherObj.Arrays.U64S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.f32s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysF32S(otherObj.Arrays.F32S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.f64s"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysF64S(otherObj.Arrays.F64S, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.durations"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysDurations(otherObj.Arrays.Durations, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.dur_aliases"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysDurAliases(otherObj.Arrays.DurAliases, originObj)
+	}
+	if originObj, existsFlag := otherObj.originOf("arrays.sizes"); existsFlag && originObj >= fieldOriginFile {
+		obj.setArraysSizes(otherObj.Arrays.Sizes, originObj)
+	}
 }
 
 func (obj *ConfigObj) ApplyDefaults() {
@@ -109,6 +196,35 @@ func (obj *ConfigObj) ApplyDefaults() {
 	obj.setFeaturesRollout(map[string][]string{"prod": []string{"metrics"}, "stage": []string{"metrics", "tracing"}}, fieldOriginDefault)
 	obj.setLabelsCommon(map[string]string{"env": "dev", "team": "platform"}, fieldOriginDefault)
 	obj.setExtensionsRaw(map[string]any{"nested": map[string]any{"mode": "safe", "retries": 3}}, fieldOriginDefault)
+	obj.setNumbersI8(-8, fieldOriginDefault)
+	obj.setNumbersI16(1616, fieldOriginDefault)
+	obj.setNumbersI32(323232, fieldOriginDefault)
+	obj.setNumbersI64(6464646464, fieldOriginDefault)
+	obj.setNumbersU(7, fieldOriginDefault)
+	obj.setNumbersU8(200, fieldOriginDefault)
+	obj.setNumbersU16(60000, fieldOriginDefault)
+	obj.setNumbersU32(4294967295, fieldOriginDefault)
+	obj.setNumbersU64(64, fieldOriginDefault)
+	obj.setNumbersF(1.5, fieldOriginDefault)
+	obj.setNumbersF32(2.5, fieldOriginDefault)
+	obj.setNumbersF64(3.5, fieldOriginDefault)
+	obj.setNumbersDurAlias(time.Duration(90000000000), fieldOriginDefault)
+	obj.setArraysBools([]bool{true, false, true}, fieldOriginDefault)
+	obj.setArraysInts([]int{1, 2, 3}, fieldOriginDefault)
+	obj.setArraysI8S([]int8{-1, 0, 1}, fieldOriginDefault)
+	obj.setArraysI16S([]int16{100, 200}, fieldOriginDefault)
+	obj.setArraysI32S([]int32{1000}, fieldOriginDefault)
+	obj.setArraysI64S([]int64{10000000000}, fieldOriginDefault)
+	obj.setArraysUs([]uint{1, 2}, fieldOriginDefault)
+	obj.setArraysU8S([]uint8{255}, fieldOriginDefault)
+	obj.setArraysU16S([]uint16{65535}, fieldOriginDefault)
+	obj.setArraysU32S([]uint32{4294967295}, fieldOriginDefault)
+	obj.setArraysU64S([]uint64{64}, fieldOriginDefault)
+	obj.setArraysF32S([]float32{1.1, 2.2}, fieldOriginDefault)
+	obj.setArraysF64S([]float64{3.3}, fieldOriginDefault)
+	obj.setArraysDurations([]time.Duration{time.Duration(1000000000), time.Duration(2000000000)}, fieldOriginDefault)
+	obj.setArraysDurAliases([]time.Duration{time.Duration(5000000000)}, fieldOriginDefault)
+	obj.setArraysSizes([]SizeObj{SizeObj(1024), SizeObj(2097152)}, fieldOriginDefault)
 }
 
 // // // // // // // // // //
@@ -199,4 +315,236 @@ func (obj *ConfigObj) setExtensionsRaw(valueObj map[string]any, originObj fieldO
 	}
 	obj.Extensions.Raw = valueObj
 	obj.markOrigin("extensions.raw", originObj)
+}
+
+func (obj *ConfigObj) setNumbersI8(valueObj int8, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.i8", originObj) {
+		return
+	}
+	obj.Numbers.I8 = valueObj
+	obj.markOrigin("numbers.i8", originObj)
+}
+
+func (obj *ConfigObj) setNumbersI16(valueObj int16, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.i16", originObj) {
+		return
+	}
+	obj.Numbers.I16 = valueObj
+	obj.markOrigin("numbers.i16", originObj)
+}
+
+func (obj *ConfigObj) setNumbersI32(valueObj int32, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.i32", originObj) {
+		return
+	}
+	obj.Numbers.I32 = valueObj
+	obj.markOrigin("numbers.i32", originObj)
+}
+
+func (obj *ConfigObj) setNumbersI64(valueObj int64, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.i64", originObj) {
+		return
+	}
+	obj.Numbers.I64 = valueObj
+	obj.markOrigin("numbers.i64", originObj)
+}
+
+func (obj *ConfigObj) setNumbersU(valueObj uint, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.u", originObj) {
+		return
+	}
+	obj.Numbers.U = valueObj
+	obj.markOrigin("numbers.u", originObj)
+}
+
+func (obj *ConfigObj) setNumbersU8(valueObj uint8, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.u8", originObj) {
+		return
+	}
+	obj.Numbers.U8 = valueObj
+	obj.markOrigin("numbers.u8", originObj)
+}
+
+func (obj *ConfigObj) setNumbersU16(valueObj uint16, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.u16", originObj) {
+		return
+	}
+	obj.Numbers.U16 = valueObj
+	obj.markOrigin("numbers.u16", originObj)
+}
+
+func (obj *ConfigObj) setNumbersU32(valueObj uint32, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.u32", originObj) {
+		return
+	}
+	obj.Numbers.U32 = valueObj
+	obj.markOrigin("numbers.u32", originObj)
+}
+
+func (obj *ConfigObj) setNumbersU64(valueObj uint64, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.u64", originObj) {
+		return
+	}
+	obj.Numbers.U64 = valueObj
+	obj.markOrigin("numbers.u64", originObj)
+}
+
+func (obj *ConfigObj) setNumbersF(valueObj float32, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.f", originObj) {
+		return
+	}
+	obj.Numbers.F = valueObj
+	obj.markOrigin("numbers.f", originObj)
+}
+
+func (obj *ConfigObj) setNumbersF32(valueObj float32, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.f32", originObj) {
+		return
+	}
+	obj.Numbers.F32 = valueObj
+	obj.markOrigin("numbers.f32", originObj)
+}
+
+func (obj *ConfigObj) setNumbersF64(valueObj float64, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.f64", originObj) {
+		return
+	}
+	obj.Numbers.F64 = valueObj
+	obj.markOrigin("numbers.f64", originObj)
+}
+
+func (obj *ConfigObj) setNumbersDurAlias(valueObj time.Duration, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("numbers.dur_alias", originObj) {
+		return
+	}
+	obj.Numbers.DurAlias = valueObj
+	obj.markOrigin("numbers.dur_alias", originObj)
+}
+
+func (obj *ConfigObj) setArraysBools(valueObj []bool, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.bools", originObj) {
+		return
+	}
+	obj.Arrays.Bools = valueObj
+	obj.markOrigin("arrays.bools", originObj)
+}
+
+func (obj *ConfigObj) setArraysInts(valueObj []int, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.ints", originObj) {
+		return
+	}
+	obj.Arrays.Ints = valueObj
+	obj.markOrigin("arrays.ints", originObj)
+}
+
+func (obj *ConfigObj) setArraysI8S(valueObj []int8, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.i8s", originObj) {
+		return
+	}
+	obj.Arrays.I8S = valueObj
+	obj.markOrigin("arrays.i8s", originObj)
+}
+
+func (obj *ConfigObj) setArraysI16S(valueObj []int16, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.i16s", originObj) {
+		return
+	}
+	obj.Arrays.I16S = valueObj
+	obj.markOrigin("arrays.i16s", originObj)
+}
+
+func (obj *ConfigObj) setArraysI32S(valueObj []int32, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.i32s", originObj) {
+		return
+	}
+	obj.Arrays.I32S = valueObj
+	obj.markOrigin("arrays.i32s", originObj)
+}
+
+func (obj *ConfigObj) setArraysI64S(valueObj []int64, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.i64s", originObj) {
+		return
+	}
+	obj.Arrays.I64S = valueObj
+	obj.markOrigin("arrays.i64s", originObj)
+}
+
+func (obj *ConfigObj) setArraysUs(valueObj []uint, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.us", originObj) {
+		return
+	}
+	obj.Arrays.Us = valueObj
+	obj.markOrigin("arrays.us", originObj)
+}
+
+func (obj *ConfigObj) setArraysU8S(valueObj []uint8, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.u8s", originObj) {
+		return
+	}
+	obj.Arrays.U8S = valueObj
+	obj.markOrigin("arrays.u8s", originObj)
+}
+
+func (obj *ConfigObj) setArraysU16S(valueObj []uint16, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.u16s", originObj) {
+		return
+	}
+	obj.Arrays.U16S = valueObj
+	obj.markOrigin("arrays.u16s", originObj)
+}
+
+func (obj *ConfigObj) setArraysU32S(valueObj []uint32, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.u32s", originObj) {
+		return
+	}
+	obj.Arrays.U32S = valueObj
+	obj.markOrigin("arrays.u32s", originObj)
+}
+
+func (obj *ConfigObj) setArraysU64S(valueObj []uint64, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.u64s", originObj) {
+		return
+	}
+	obj.Arrays.U64S = valueObj
+	obj.markOrigin("arrays.u64s", originObj)
+}
+
+func (obj *ConfigObj) setArraysF32S(valueObj []float32, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.f32s", originObj) {
+		return
+	}
+	obj.Arrays.F32S = valueObj
+	obj.markOrigin("arrays.f32s", originObj)
+}
+
+func (obj *ConfigObj) setArraysF64S(valueObj []float64, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.f64s", originObj) {
+		return
+	}
+	obj.Arrays.F64S = valueObj
+	obj.markOrigin("arrays.f64s", originObj)
+}
+
+func (obj *ConfigObj) setArraysDurations(valueObj []time.Duration, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.durations", originObj) {
+		return
+	}
+	obj.Arrays.Durations = valueObj
+	obj.markOrigin("arrays.durations", originObj)
+}
+
+func (obj *ConfigObj) setArraysDurAliases(valueObj []time.Duration, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.dur_aliases", originObj) {
+		return
+	}
+	obj.Arrays.DurAliases = valueObj
+	obj.markOrigin("arrays.dur_aliases", originObj)
+}
+
+func (obj *ConfigObj) setArraysSizes(valueObj []SizeObj, originObj fieldOriginObj) {
+	if !obj.canApplyOrigin("arrays.sizes", originObj) {
+		return
+	}
+	obj.Arrays.Sizes = valueObj
+	obj.markOrigin("arrays.sizes", originObj)
 }

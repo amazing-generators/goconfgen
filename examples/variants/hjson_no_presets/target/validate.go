@@ -45,5 +45,19 @@ func (obj *ConfigObj) Validate() error {
 		return fmt.Errorf("field [limits.body_max] must be >= 1KiB")
 	}
 
+	if obj.Numbers.I8 < -128 {
+		return fmt.Errorf("field [numbers.i8] must be >= -128")
+	}
+	if obj.Numbers.I8 > 127 {
+		return fmt.Errorf("field [numbers.i8] must be <= 127")
+	}
+
+	if obj.Numbers.F64 < 0.0 {
+		return fmt.Errorf("field [numbers.f64] must be >= 0.0")
+	}
+	if obj.Numbers.F64 > 1000.0 {
+		return fmt.Errorf("field [numbers.f64] must be <= 1000.0")
+	}
+
 	return nil
 }

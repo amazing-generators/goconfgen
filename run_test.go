@@ -45,6 +45,7 @@ func TestRunComplexSourceDirObj(t *testing.T) {
 		"cli.go",
 		"entrypoint.go",
 		"enums_gen.go",
+		"formats.go",
 		"helpers_gen.go",
 		"parse_hjson.go",
 		"parse_json.go",
@@ -418,6 +419,31 @@ func TestGeneratedBoolFlagRejectsGarbageObj(t *testing.T) {
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
+func TestGeneratedShorthandMapKeySymmetryObj(t *testing.T) {
+	t.Helper()
+
+	repoRootPath, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("read working directory: %v", err)
+	}
+
+	outputPath := filepath.Join(t.TempDir(), "generated")
+	if _, err = Run(ConfigObj{
+		Schema:      writeSchemaObj(t, "labels:\n  type: \"map[string]string\"\n  value:\n    env: dev\n"),
+		OutputDir:   outputPath,
+		PackageName: "mapcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
+		Force:       true,
+	}); err != nil {
+		t.Fatalf("run generator: %v", err)
+	}
+
+	// Ключи с '-', '.' и длиной больше прежнего лимита 16 должны приниматься из CLI-shorthand,
+	// как они принимаются из файла конфигурации.
+	smokeText := "package mapcfg\n\nimport \"testing\"\n\nfunc TestGeneratedShorthandMapKeyObj(t *testing.T) {\n\tobj := New()\n\tif err := ApplyCLI(&obj, []string{\"-labels=feature-flag=on,very.long.key.name.exceeding.sixteen=yes\"}); err != nil {\n\t\tt.Fatalf(\"apply cli shorthand: %v\", err)\n\t}\n\tif obj.Labels[\"feature-flag\"] != \"on\" || obj.Labels[\"very.long.key.name.exceeding.sixteen\"] != \"yes\" {\n\t\tt.Fatalf(\"unexpected map: %#v\", obj.Labels)\n\t}\n}\n"
+	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
+}
+
 func TestGeneratedParseAutoValidatesObj(t *testing.T) {
 	t.Helper()
 
@@ -638,6 +664,110 @@ func TestSelectiveGenerationRemovesStaleFilesObj(t *testing.T) {
 	}
 
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, "package smallcfg\n\nimport \"testing\"\n\nfunc TestSelectivePackageObj(t *testing.T) {\n\tif _, err := parseYAMLBytes([]byte(\"server:\\n  port: 9090\\n\"), true); err != nil {\n\t\tt.Fatalf(\"parse yaml: %v\", err)\n\t}\n}\n")
+}
+
+func TestStaleCleanupHeaderScopedObj(t *testing.T) {
+	t.Helper()
+
+	sourcePath := writeComplexSourceDirObj(t)
+	outputPath := filepath.Join(t.TempDir(), "generated")
+	if _, err := Run(ConfigObj{
+		SourceDir:   sourcePath,
+		OutputDir:   outputPath,
+		PackageName: "smallcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
+		Force:       true,
+	}); err != nil {
+		t.Fatalf("run full generator: %v", err)
+	}
+
+	foreignPath := filepath.Join(outputPath, "handwritten.go")
+	if err := os.WriteFile(foreignPath, []byte("package smallcfg\n\nfunc Foreign() {}\n"), 0o644); err != nil {
+		t.Fatalf("write foreign file: %v", err)
+	}
+	legacyPath := filepath.Join(outputPath, "legacy_gen.go")
+	if err := os.WriteFile(legacyPath, []byte(cGeneratedHeaderPrefix+"\n\npackage smallcfg\n"), 0o644); err != nil {
+		t.Fatalf("write legacy generated file: %v", err)
+	}
+
+	falseFlag := false
+	if _, err := Run(ConfigObj{
+		SourceDir:   sourcePath,
+		OutputDir:   outputPath,
+		PackageName: "smallcfg",
+		Formats:     []string{"yaml"},
+		Features: FeaturesObj{
+			CLI:      &falseFlag,
+			Validate: &falseFlag,
+			Render:   &falseFlag,
+			Presets:  &falseFlag,
+		},
+		Force: true,
+	}); err != nil {
+		t.Fatalf("run selective generator: %v", err)
+	}
+
+	if _, err := os.Stat(foreignPath); err != nil {
+		t.Fatalf("foreign file without header must be preserved: %v", err)
+	}
+	if _, err := os.Stat(legacyPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("arbitrary file with generated header must be removed, stat error: %v", err)
+	}
+}
+
+func TestGeneratedFormatObjectsObj(t *testing.T) {
+	t.Helper()
+
+	repoRootPath, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("read working directory: %v", err)
+	}
+
+	sourcePath := writeComplexSourceDirObj(t)
+	outputPath := filepath.Join(t.TempDir(), "generated")
+	if _, err = Run(ConfigObj{
+		SourceDir:   sourcePath,
+		OutputDir:   outputPath,
+		PackageName: "complexcfg",
+		Formats:     []string{"yaml", "json", "hjson"},
+		Force:       true,
+	}); err != nil {
+		t.Fatalf("run generator: %v", err)
+	}
+
+	smokeText := "package complexcfg\n\nimport \"testing\"\n\nfunc TestGeneratedFormatObjectsObj(t *testing.T) {\n\tnameArr := FormatNames()\n\tif len(nameArr) != 3 || nameArr[0] != \"yaml\" || nameArr[1] != \"json\" || nameArr[2] != \"hjson\" {\n\t\tt.Fatalf(\"unexpected format names: %#v\", nameArr)\n\t}\n\tobj := New()\n\tfor _, formatObj := range Formats() {\n\t\tif !formatObj.CanRender() {\n\t\t\tt.Fatalf(\"format %q should render\", formatObj.Name())\n\t\t}\n\t\tdataArr, err := formatObj.Render(&obj, false)\n\t\tif err != nil {\n\t\t\tt.Fatalf(\"render %q: %v\", formatObj.Name(), err)\n\t\t}\n\t\tparsedObj, err := formatObj.Parse(dataArr)\n\t\tif err != nil {\n\t\t\tt.Fatalf(\"parse %q: %v\", formatObj.Name(), err)\n\t\t}\n\t\tif parsedObj.Server.Port != obj.Server.Port {\n\t\t\tt.Fatalf(\"roundtrip %q mismatch\", formatObj.Name())\n\t\t}\n\t}\n\tif _, ok := FormatByName(\"json\"); !ok {\n\t\tt.Fatalf(\"expected json format\")\n\t}\n\tif _, ok := FormatByName(\"toml\"); ok {\n\t\tt.Fatalf(\"unexpected toml format\")\n\t}\n}\n"
+	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
+}
+
+func TestGeneratedFormatObjectsRenderDisabledObj(t *testing.T) {
+	t.Helper()
+
+	repoRootPath, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("read working directory: %v", err)
+	}
+
+	sourcePath := writeComplexSourceDirObj(t)
+	outputPath := filepath.Join(t.TempDir(), "generated")
+	falseFlag := false
+	if _, err = Run(ConfigObj{
+		SourceDir:   sourcePath,
+		OutputDir:   outputPath,
+		PackageName: "yamlonlycfg",
+		Formats:     []string{"yaml"},
+		Features: FeaturesObj{
+			CLI:      &falseFlag,
+			Validate: &falseFlag,
+			Render:   &falseFlag,
+			Presets:  &falseFlag,
+		},
+		Force: true,
+	}); err != nil {
+		t.Fatalf("run generator: %v", err)
+	}
+
+	smokeText := "package yamlonlycfg\n\nimport \"testing\"\n\nfunc TestGeneratedFormatRenderDisabledObj(t *testing.T) {\n\tformatObjArr := Formats()\n\tif len(formatObjArr) != 1 || formatObjArr[0].Name() != \"yaml\" {\n\t\tt.Fatalf(\"unexpected formats: %#v\", FormatNames())\n\t}\n\tif formatObjArr[0].CanRender() {\n\t\tt.Fatalf(\"render must be disabled\")\n\t}\n\tobj := New()\n\tif _, err := formatObjArr[0].Render(&obj, false); err == nil {\n\t\tt.Fatalf(\"expected render-unsupported error\")\n\t}\n}\n"
+	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
 func assertDirLayoutObj(t *testing.T, expectedRelPathArr []string, actualPath string) {

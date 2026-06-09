@@ -24,6 +24,8 @@ type TypeObj struct {
 	GoText         string
 	Family         TypeFamilyObj
 	ElemSchemaText string
+	Kind           FieldKindObj
+	BitSize        int
 	IsDuration     bool
 	IsSize         bool
 	IsEnum         bool

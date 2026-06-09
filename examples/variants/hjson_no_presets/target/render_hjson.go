@@ -106,6 +106,32 @@ func appendHJSONConfigObj(bufferObj *bytes.Buffer, obj *ConfigObj, partialFlag b
 			includeFlag = true
 		}
 	}
+	{
+		var childBufferObj bytes.Buffer
+		childIncludeFlag, err := appendHJSONNumbersObj(&childBufferObj, obj, partialFlag, indentText+"  ", false)
+		if err != nil {
+			return false, err
+		}
+		if childIncludeFlag || !partialFlag {
+			appendHJSONEntryPrefix(&bodyObj, indentText, "numbers", "Scalar numeric type coverage.\nExercises every supported integer, float, duration, and size width.")
+			bodyObj.Write(childBufferObj.Bytes())
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		var childBufferObj bytes.Buffer
+		childIncludeFlag, err := appendHJSONArraysObj(&childBufferObj, obj, partialFlag, indentText+"  ", false)
+		if err != nil {
+			return false, err
+		}
+		if childIncludeFlag || !partialFlag {
+			appendHJSONEntryPrefix(&bodyObj, indentText, "arrays", "Array type coverage.\nOne field per supported array element type.")
+			bodyObj.Write(childBufferObj.Bytes())
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
 	if !includeFlag && partialFlag {
 		return false, nil
 	}
@@ -412,6 +438,508 @@ func appendHJSONExtensionsObj(bufferObj *bytes.Buffer, obj *ConfigObj, partialFl
 	return true, nil
 }
 
+func appendHJSONNumbersObj(bufferObj *bytes.Buffer, obj *ConfigObj, partialFlag bool, indentText string, rootFlag bool) (bool, error) {
+	var bodyObj bytes.Buffer
+	includeFlag := false
+	{
+		if !partialFlag || obj.hasPath("numbers.i8") {
+			valueObj, err := renderValueNumbersI8(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i8", "Signed 8-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.i16") {
+			valueObj, err := renderValueNumbersI16(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i16", "Signed 16-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.i32") {
+			valueObj, err := renderValueNumbersI32(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i32", "Signed 32-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.i64") {
+			valueObj, err := renderValueNumbersI64(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i64", "Signed 64-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.u") {
+			valueObj, err := renderValueNumbersU(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u", "Unsigned word value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.u8") {
+			valueObj, err := renderValueNumbersU8(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u8", "Unsigned 8-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.u16") {
+			valueObj, err := renderValueNumbersU16(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u16", "Unsigned 16-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.u32") {
+			valueObj, err := renderValueNumbersU32(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u32", "Unsigned 32-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.u64") {
+			valueObj, err := renderValueNumbersU64(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u64", "Unsigned 64-bit value.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.f") {
+			valueObj, err := renderValueNumbersF(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "f", "32-bit float alias.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.f32") {
+			valueObj, err := renderValueNumbersF32(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "f32", "32-bit float.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.f64") {
+			valueObj, err := renderValueNumbersF64(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "f64", "64-bit float.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("numbers.dur_alias") {
+			valueObj, err := renderValueNumbersDurAlias(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "dur_alias", "Duration via Go alias type.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	if !includeFlag && partialFlag {
+		return false, nil
+	}
+	bufferObj.WriteString("{")
+	if bodyObj.Len() > 0 {
+		bufferObj.WriteString("\n")
+		bufferObj.Write(bodyObj.Bytes())
+		bufferObj.WriteString(indentText)
+	}
+	bufferObj.WriteString("}")
+	if rootFlag {
+		bufferObj.WriteString("\n")
+	}
+	return true, nil
+}
+
+func appendHJSONArraysObj(bufferObj *bytes.Buffer, obj *ConfigObj, partialFlag bool, indentText string, rootFlag bool) (bool, error) {
+	var bodyObj bytes.Buffer
+	includeFlag := false
+	{
+		if !partialFlag || obj.hasPath("arrays.bools") {
+			valueObj, err := renderValueArraysBools(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "bools", "Bool array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.ints") {
+			valueObj, err := renderValueArraysInts(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "ints", "Int array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.i8s") {
+			valueObj, err := renderValueArraysI8S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i8s", "Int8 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.i16s") {
+			valueObj, err := renderValueArraysI16S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i16s", "Int16 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.i32s") {
+			valueObj, err := renderValueArraysI32S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i32s", "Int32 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.i64s") {
+			valueObj, err := renderValueArraysI64S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "i64s", "Int64 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.us") {
+			valueObj, err := renderValueArraysUs(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "us", "Uint array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.u8s") {
+			valueObj, err := renderValueArraysU8S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u8s", "Uint8 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.u16s") {
+			valueObj, err := renderValueArraysU16S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u16s", "Uint16 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.u32s") {
+			valueObj, err := renderValueArraysU32S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u32s", "Uint32 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.u64s") {
+			valueObj, err := renderValueArraysU64S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "u64s", "Uint64 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.f32s") {
+			valueObj, err := renderValueArraysF32S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "f32s", "Float32 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.f64s") {
+			valueObj, err := renderValueArraysF64S(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "f64s", "Float64 array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.durations") {
+			valueObj, err := renderValueArraysDurations(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "durations", "Duration array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.dur_aliases") {
+			valueObj, err := renderValueArraysDurAliases(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "dur_aliases", "Duration alias array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	{
+		if !partialFlag || obj.hasPath("arrays.sizes") {
+			valueObj, err := renderValueArraysSizes(obj)
+			if err != nil {
+				return false, err
+			}
+			valueArr, err := renderHJSONValue(valueObj, indentText+"  ")
+			if err != nil {
+				return false, err
+			}
+			appendHJSONEntryPrefix(&bodyObj, indentText, "sizes", "Size array.")
+			bodyObj.Write(valueArr)
+			bodyObj.WriteString("\n")
+			includeFlag = true
+		}
+	}
+	if !includeFlag && partialFlag {
+		return false, nil
+	}
+	bufferObj.WriteString("{")
+	if bodyObj.Len() > 0 {
+		bufferObj.WriteString("\n")
+		bufferObj.Write(bodyObj.Bytes())
+		bufferObj.WriteString(indentText)
+	}
+	bufferObj.WriteString("}")
+	if rootFlag {
+		bufferObj.WriteString("\n")
+	}
+	return true, nil
+}
+
 func appendHJSONEntryPrefix(bufferObj *bytes.Buffer, indentText string, keyText string, usageText string) {
 	if usageText != "" {
 		for _, lineText := range strings.Split(usageText, "\n") {
@@ -431,10 +959,17 @@ func appendHJSONEntryPrefix(bufferObj *bytes.Buffer, indentText string, keyText 
 func renderHJSONValue(valueObj any, indentText string) ([]byte, error) {
 	optsObj := hjson.DefaultOptions()
 	optsObj.Comments = false
-	optsObj.EmitRootBraces = false
+	// Значение-лист может быть объектом (map): ему нужны фигурные скобки, иначе пары ключ-значение
+	// вылезают на строку с именем поля и ломают HJSON. Скобки самого корня пишет appendHJSONBranch.
+	optsObj.EmitRootBraces = true
 	optsObj.IndentBy = "  "
 	optsObj.BaseIndentation = indentText
-	return hjson.MarshalWithOptions(valueObj, optsObj)
+	dataArr, err := hjson.MarshalWithOptions(valueObj, optsObj)
+	if err != nil {
+		return nil, err
+	}
+	// Базовый отступ нужен для строк-продолжений, но первая строка идёт сразу после "key: ".
+	return bytes.TrimLeft(dataArr, " "), nil
 }
 
 func renderHJSONKeyText(keyText string) ([]byte, error) {

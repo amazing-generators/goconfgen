@@ -42,6 +42,57 @@ extensions:
     nested:
       retries: 3
       mode: safe
+# Scalar numeric type coverage.
+# Exercises every supported integer, float, duration, and size width.
+numbers:
+  i8: -8 # Signed 8-bit value.
+  i16: 1616 # Signed 16-bit value.
+  i32: 323232 # Signed 32-bit value.
+  i64: 6464646464 # Signed 64-bit value.
+  u: 7 # Unsigned word value.
+  u8: 200 # Unsigned 8-bit value.
+  u16: 60000 # Unsigned 16-bit value.
+  u32: 4294967295 # Unsigned 32-bit value.
+  u64: 64 # Unsigned 64-bit value.
+  f: 1.5 # 32-bit float alias.
+  f32: 2.5 # 32-bit float.
+  f64: 3.5 # 64-bit float.
+  dur_alias: 90s # Duration via Go alias type.
+# Array type coverage.
+# One field per supported array element type.
+arrays:
+  # Bool array.
+  bools: [true, false, true]
+  # Int array.
+  ints: [1, 2, 3]
+  # Int8 array.
+  i8s: [-1, 0, 1]
+  # Int16 array.
+  i16s: [100, 200]
+  # Int32 array.
+  i32s: [1000]
+  # Int64 array.
+  i64s: [10000000000]
+  # Uint array.
+  us: [1, 2]
+  # Uint8 array.
+  u8s: [255]
+  # Uint16 array.
+  u16s: [65535]
+  # Uint32 array.
+  u32s: [4294967295]
+  # Uint64 array.
+  u64s: [64]
+  # Float32 array.
+  f32s: [1.1, 2.2]
+  # Float64 array.
+  f64s: [3.3]
+  # Duration array.
+  durations: [1s, 2s]
+  # Duration alias array.
+  dur_aliases: [5s]
+  # Size array.
+  sizes: [1KiB, 2MiB]
 `)
 var cFullJSONBytes = []byte(`{
   "server": {
@@ -77,6 +128,39 @@ var cFullJSONBytes = []byte(`{
         "mode": "safe"
       }
     }
+  },
+  "numbers": {
+    "i8": -8,
+    "i16": 1616,
+    "i32": 323232,
+    "i64": 6464646464,
+    "u": 7,
+    "u8": 200,
+    "u16": 60000,
+    "u32": 4294967295,
+    "u64": 64,
+    "f": 1.5,
+    "f32": 2.5,
+    "f64": 3.5,
+    "dur_alias": "90s"
+  },
+  "arrays": {
+    "bools": [true,false,true],
+    "ints": [1,2,3],
+    "i8s": [-1,0,1],
+    "i16s": [100,200],
+    "i32s": [1000],
+    "i64s": [10000000000],
+    "us": [1,2],
+    "u8s": [255],
+    "u16s": [65535],
+    "u32s": [4294967295],
+    "u64s": [64],
+    "f32s": [1.1,2.2],
+    "f64s": [3.3],
+    "durations": ["1s","2s"],
+    "dur_aliases": ["5s"],
+    "sizes": ["1KiB","2MiB"]
   }
 }
 `)
@@ -85,41 +169,41 @@ var cFullHJSONBytes = []byte(`{
   # This branch demonstrates generated interfaces.
   server: {
     # Listen host for inbound HTTP requests.
-    host:     127.0.0.1
+    host: 127.0.0.1
     # Listen port for inbound HTTP requests.
-    port:     8080
+    port: 8080
     # Enable TLS listener mode.
-    secure:     false
+    secure: false
   }
   # Logging settings.
   logging: {
     # Minimum log level.
-    level:     info
+    level: info
     # Ordered logging sinks.
-    outputs:     [
+    outputs: [
       console
     ]
   }
   # Resource protection settings.
   limits: {
     # Request timeout.
-    timeout:     15s
+    timeout: 15s
     # Maximum request body size.
-    body_max:     8MiB
+    body_max: 8MiB
   }
   # Feature toggles and rollout lists.
   features: {
     # Enabled feature keys.
-    enabled:     [
+    enabled: [
       metrics
       tracing
     ]
     # Per-environment rollout list.
     rollout: {
-      prod:       [
+      prod: [
         metrics
       ]
-      stage:       [
+      stage: [
         metrics
         tracing
       ]
@@ -129,8 +213,8 @@ var cFullHJSONBytes = []byte(`{
   labels: {
     # Common labels included in every event.
     common: {
-      env:       dev
-      team:       platform
+      env: dev
+      team: platform
     }
   }
   # Arbitrary extension payload.
@@ -138,10 +222,119 @@ var cFullHJSONBytes = []byte(`{
     # Extra unstructured payload.
     raw: {
       nested: {
-        retries:         3
-        mode:         safe
+        retries: 3
+        mode: safe
       }
     }
+  }
+  # Scalar numeric type coverage.
+  # Exercises every supported integer, float, duration, and size width.
+  numbers: {
+    # Signed 8-bit value.
+    i8: -8
+    # Signed 16-bit value.
+    i16: 1616
+    # Signed 32-bit value.
+    i32: 323232
+    # Signed 64-bit value.
+    i64: 6464646464
+    # Unsigned word value.
+    u: 7
+    # Unsigned 8-bit value.
+    u8: 200
+    # Unsigned 16-bit value.
+    u16: 60000
+    # Unsigned 32-bit value.
+    u32: 4294967295
+    # Unsigned 64-bit value.
+    u64: 64
+    # 32-bit float alias.
+    f: 1.5
+    # 32-bit float.
+    f32: 2.5
+    # 64-bit float.
+    f64: 3.5
+    # Duration via Go alias type.
+    dur_alias: 90s
+  }
+  # Array type coverage.
+  # One field per supported array element type.
+  arrays: {
+    # Bool array.
+    bools: [
+      true
+      false
+      true
+    ]
+    # Int array.
+    ints: [
+      1
+      2
+      3
+    ]
+    # Int8 array.
+    i8s: [
+      -1
+      0
+      1
+    ]
+    # Int16 array.
+    i16s: [
+      100
+      200
+    ]
+    # Int32 array.
+    i32s: [
+      1000
+    ]
+    # Int64 array.
+    i64s: [
+      10000000000
+    ]
+    # Uint array.
+    us: [
+      1
+      2
+    ]
+    # Uint8 array.
+    u8s: [
+      255
+    ]
+    # Uint16 array.
+    u16s: [
+      65535
+    ]
+    # Uint32 array.
+    u32s: [
+      4294967295
+    ]
+    # Uint64 array.
+    u64s: [
+      64
+    ]
+    # Float32 array.
+    f32s: [
+      1.1
+      2.2
+    ]
+    # Float64 array.
+    f64s: [
+      3.3
+    ]
+    # Duration array.
+    durations: [
+      1s
+      2s
+    ]
+    # Duration alias array.
+    dur_aliases: [
+      5s
+    ]
+    # Size array.
+    sizes: [
+      1KiB
+      2MiB
+    ]
   }
 }
 `)
@@ -196,19 +389,19 @@ var cMinimalHJSONBytes = []byte(`{
   # This branch demonstrates generated interfaces.
   server: {
     # Listen host for inbound HTTP requests.
-    host:     0.0.0.0
+    host: 0.0.0.0
     # Listen port for inbound HTTP requests.
-    port:     8080
+    port: 8080
   }
   # Logging settings.
   logging: {
     # Minimum log level.
-    level:     warn
+    level: warn
   }
   # Resource protection settings.
   limits: {
     # Request timeout.
-    timeout:     30s
+    timeout: 30s
   }
 }
 `)
@@ -282,18 +475,18 @@ var cMediumHJSONBytes = []byte(`{
   # This branch demonstrates generated interfaces.
   server: {
     # Listen host for inbound HTTP requests.
-    host:     0.0.0.0
+    host: 0.0.0.0
     # Listen port for inbound HTTP requests.
-    port:     8443
+    port: 8443
     # Enable TLS listener mode.
-    secure:     true
+    secure: true
   }
   # Logging settings.
   logging: {
     # Minimum log level.
-    level:     info
+    level: info
     # Ordered logging sinks.
-    outputs:     [
+    outputs: [
       console
       json
     ]
@@ -301,16 +494,16 @@ var cMediumHJSONBytes = []byte(`{
   # Resource protection settings.
   limits: {
     # Request timeout.
-    timeout:     45s
+    timeout: 45s
     # Maximum request body size.
-    body_max:     16MiB
+    body_max: 16MiB
   }
   # Static metadata labels.
   labels: {
     # Common labels included in every event.
     common: {
-      env:       stage
-      team:       platform
+      env: stage
+      team: platform
     }
   }
 }

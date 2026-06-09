@@ -50,7 +50,7 @@ return obj, nil
 {{- end }}
     {{- range .FieldObjArr }}
         case {{ quote .KeyText }}:
-        {{ template "fieldAnyAssign" . }}
+        {{ fieldAssign . }}
 {{- end }}
     default:
     return fmt.Errorf("unknown config key: %s", joinPathText({{ quote .PathText }}, keyText))
@@ -418,16 +418,19 @@ err := json.Unmarshal([]byte(textValue), &resultObj)
 return resultObj, err
 }
 
+// validateShorthandKey accepts the key characters that configuration files allow for map
+// keys (letters, digits, '_', '-', '.'); any other character makes the value fall back to the
+// JSON form, which can represent arbitrary keys.
 func validateShorthandKey(keyText string) error {
-if len(keyText) == 0 || len(keyText) > 16 {
-return fmt.Errorf("invalid shorthand key length [%s]", keyText)
+if keyText == "" {
+return fmt.Errorf("invalid shorthand key [%s]", keyText)
 }
 for _, itemRune := range keyText {
 switch {
 case itemRune >= 'a' && itemRune <= 'z':
 case itemRune >= 'A' && itemRune <= 'Z':
 case itemRune >= '0' && itemRune <= '9':
-case itemRune == '_':
+case itemRune == '_' || itemRune == '-' || itemRune == '.':
 default:
 return fmt.Errorf("invalid shorthand key [%s]", keyText)
 }
@@ -539,314 +542,6 @@ return typedValue
 
 {{ range .FieldObjArr }}
     func renderValue{{ goName .PathText }}(obj *ConfigObj) (any, error) {
-    {{ template "fieldRenderValue" . }}
+    {{ fieldRenderValue . }}
 }
 {{ end }}
-
-{{- define "fieldAnyAssign" -}}
-{{- if and .TypeObj.IsEnum (eq (printf "%s" .TypeObj.Family) "scalar") }}
-switch typedValue := valueObj.(type) {
-case string:
-parsedValue, err := Parse{{ .EnumObj.TypeName }}(strings.TrimSpace(typedValue))
-if err != nil {
-return fmt.Errorf("field [{{ .PathText }}]: %w", err)
-}
-obj.{{ setterName . }}(parsedValue, originObj)
-case {{ .EnumObj.TypeName }}:
-obj.{{ setterName . }}(typedValue, originObj)
-default:
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-{{- else if and .TypeObj.IsEnum (eq (printf "%s" .TypeObj.Family) "array") }}
-typedValue, okTyped := valueObj.({{ .GoTypeText }})
-if okTyped {
-obj.{{ setterName . }}(typedValue, originObj)
-return nil
-}
-inputArr, ok := toAnySlice(valueObj)
-if !ok {
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-resultArr := make({{ .GoTypeText }}, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-itemText, ok := itemValue.(string)
-if !ok {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be enum string", itemIndex)
-}
-parsedValue, err := Parse{{ .EnumObj.TypeName }}(strings.TrimSpace(itemText))
-if err != nil {
-return fmt.Errorf("field [{{ .PathText }}][%d]: %w", itemIndex, err)
-}
-resultArr = append(resultArr, parsedValue)
-}
-obj.{{ setterName . }}(resultArr, originObj)
-{{- else if and .TypeObj.IsDuration (eq (printf "%s" .TypeObj.Family) "scalar") }}
-switch typedValue := valueObj.(type) {
-case time.Duration:
-obj.{{ setterName . }}(typedValue, originObj)
-case string:
-parsedValue, err := time.ParseDuration(strings.TrimSpace(typedValue))
-if err != nil {
-return fmt.Errorf("field [{{ .PathText }}]: %w", err)
-}
-obj.{{ setterName . }}(parsedValue, originObj)
-default:
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-{{- else if and .TypeObj.IsSize (eq (printf "%s" .TypeObj.Family) "scalar") }}
-switch typedValue := valueObj.(type) {
-case SizeObj:
-obj.{{ setterName . }}(typedValue, originObj)
-case uint64:
-obj.{{ setterName . }}(SizeObj(typedValue), originObj)
-case int:
-if typedValue < 0 {
-return fmt.Errorf("field [{{ .PathText }}] must be non-negative")
-}
-obj.{{ setterName . }}(SizeObj(typedValue), originObj)
-case int64:
-if typedValue < 0 {
-return fmt.Errorf("field [{{ .PathText }}] must be non-negative")
-}
-obj.{{ setterName . }}(SizeObj(typedValue), originObj)
-case float64:
-rawValue, ok := toUint64(typedValue)
-if !ok {
-return fmt.Errorf("field [{{ .PathText }}] must be non-negative integer")
-}
-obj.{{ setterName . }}(SizeObj(rawValue), originObj)
-case string:
-parsedValue, err := parseSize(strings.TrimSpace(typedValue))
-if err != nil {
-return fmt.Errorf("field [{{ .PathText }}]: %w", err)
-}
-obj.{{ setterName . }}(SizeObj(parsedValue), originObj)
-default:
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-{{- else if eq .TypeObj.SchemaText "string" }}
-typedValue, ok := valueObj.(string)
-if !ok {
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-obj.{{ setterName . }}(typedValue, originObj)
-{{- else if eq .TypeObj.SchemaText "bool" }}
-typedValue, ok := valueObj.(bool)
-if !ok {
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-obj.{{ setterName . }}(typedValue, originObj)
-{{- else if or (eq .TypeObj.SchemaText "int") (eq .TypeObj.SchemaText "int8") (eq .TypeObj.SchemaText "int16") (eq .TypeObj.SchemaText "int32") (eq .TypeObj.SchemaText "int64") }}
-rawValue, ok := toInt64(valueObj)
-if !ok || !validateSignedRange(rawValue, {{ bitSizeLiteral . }}) {
-return fmt.Errorf("field [{{ .PathText }}] unsupported integer value %v", valueObj)
-}
-obj.{{ setterName . }}({{ .GoTypeText }}(rawValue), originObj)
-{{- else if or (eq .TypeObj.SchemaText "uint") (eq .TypeObj.SchemaText "uint8") (eq .TypeObj.SchemaText "uint16") (eq .TypeObj.SchemaText "uint32") (eq .TypeObj.SchemaText "uint64") }}
-rawValue, ok := toUint64(valueObj)
-if !ok || !validateUnsignedRange(rawValue, {{ bitSizeLiteral . }}) {
-return fmt.Errorf("field [{{ .PathText }}] unsupported unsigned integer value %v", valueObj)
-}
-obj.{{ setterName . }}({{ .GoTypeText }}(rawValue), originObj)
-{{- else if or (eq .TypeObj.SchemaText "float") (eq .TypeObj.SchemaText "float32") (eq .TypeObj.SchemaText "float64") }}
-rawValue, ok := toFloat64(valueObj)
-if !ok || !validateFloatRange(rawValue, {{ bitSizeLiteral . }}) {
-return fmt.Errorf("field [{{ .PathText }}] unsupported float value %v", valueObj)
-}
-obj.{{ setterName . }}({{ .GoTypeText }}(rawValue), originObj)
-{{- else if eq (printf "%s" .TypeObj.Family) "array" }}
-inputArr, ok := toAnySlice(valueObj)
-if !ok {
-typedValue, okTyped := valueObj.({{ .GoTypeText }})
-if okTyped {
-obj.{{ setterName . }}(typedValue, originObj)
-return nil
-}
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-{{ template "fieldAnyArrayDecode" . }}
-obj.{{ setterName . }}(resultArr, originObj)
-{{- else if eq .TypeObj.SchemaText "map[string]string" }}
-typedValue, ok := valueObj.(map[string]string)
-if ok {
-obj.{{ setterName . }}(typedValue, originObj)
-return nil
-}
-anyMap, okAny := valueObj.(map[string]any)
-if !okAny {
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-resultObj := make(map[string]string, len(anyMap))
-for keyText, itemValue := range anyMap {
-itemText, okItem := itemValue.(string)
-if !okItem {
-return fmt.Errorf("field [{{ .PathText }}][%s] must be string", keyText)
-}
-resultObj[keyText] = itemText
-}
-obj.{{ setterName . }}(resultObj, originObj)
-{{- else if eq .TypeObj.SchemaText "map[string][]string" }}
-typedValue, ok := valueObj.(map[string][]string)
-if ok {
-obj.{{ setterName . }}(typedValue, originObj)
-return nil
-}
-anyMap, okAny := valueObj.(map[string]any)
-if !okAny {
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-resultObj := make(map[string][]string, len(anyMap))
-for keyText, itemValue := range anyMap {
-itemArr, okArr := toAnySlice(itemValue)
-if !okArr {
-return fmt.Errorf("field [{{ .PathText }}][%s] must be array", keyText)
-}
-childArr := make([]string, 0, len(itemArr))
-for childIndex, childValue := range itemArr {
-childText, okChild := childValue.(string)
-if !okChild {
-return fmt.Errorf("field [{{ .PathText }}][%s][%d] must be string", keyText, childIndex)
-}
-childArr = append(childArr, childText)
-}
-resultObj[keyText] = childArr
-}
-obj.{{ setterName . }}(resultObj, originObj)
-{{- else if eq .TypeObj.SchemaText "map[string]any" }}
-typedValue, ok := valueObj.(map[string]any)
-if !ok {
-return fmt.Errorf("field [{{ .PathText }}] unsupported type %T", valueObj)
-}
-obj.{{ setterName . }}(normalizeAnyMap(typedValue).(map[string]any), originObj)
-{{- else }}
-return fmt.Errorf("unsupported field type for [{{ .PathText }}]: {{ .TypeObj.SchemaText }}")
-{{- end }}
-{{- end -}}
-
-{{- define "fieldRenderValue" -}}
-    {{- if and .TypeObj.IsEnum (eq (printf "%s" .TypeObj.Family) "scalar") }}
-        return obj.{{ .AccessorText }}.String(), nil
-    {{- else if and .TypeObj.IsEnum (eq (printf "%s" .TypeObj.Family) "array") }}
-        resultArr := make([]string, 0, len(obj.{{ .AccessorText }}))
-        for _, itemObj := range obj.{{ .AccessorText }} {
-        resultArr = append(resultArr, itemObj.String())
-        }
-        return resultArr, nil
-    {{- else if and .TypeObj.IsDuration (eq (printf "%s" .TypeObj.Family) "scalar") }}
-        return obj.{{ .AccessorText }}.String(), nil
-    {{- else if and .TypeObj.IsDuration (eq (printf "%s" .TypeObj.Family) "array") }}
-        resultArr := make([]string, 0, len(obj.{{ .AccessorText }}))
-        for _, itemObj := range obj.{{ .AccessorText }} {
-        resultArr = append(resultArr, itemObj.String())
-        }
-        return resultArr, nil
-    {{- else if and .TypeObj.IsSize (eq (printf "%s" .TypeObj.Family) "scalar") }}
-        return obj.{{ .AccessorText }}.String(), nil
-    {{- else if and .TypeObj.IsSize (eq (printf "%s" .TypeObj.Family) "array") }}
-        resultArr := make([]string, 0, len(obj.{{ .AccessorText }}))
-        for _, itemObj := range obj.{{ .AccessorText }} {
-        resultArr = append(resultArr, itemObj.String())
-        }
-        return resultArr, nil
-    {{- else if eq .TypeObj.SchemaText "map[string]any" }}
-        return normalizeAnyMap(obj.{{ .AccessorText }}), nil
-    {{- else }}
-        return obj.{{ .AccessorText }}, nil
-    {{- end }}
-{{- end -}}
-
-{{- define "fieldAnyArrayDecode" -}}
-{{- if eq .TypeObj.ElemSchemaText "string" }}
-resultArr := make([]string, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-itemText, okItem := itemValue.(string)
-if !okItem {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be string", itemIndex)
-}
-resultArr = append(resultArr, itemText)
-}
-{{- else if eq .TypeObj.ElemSchemaText "bool" }}
-resultArr := make([]bool, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-itemFlag, okItem := itemValue.(bool)
-if !okItem {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be bool", itemIndex)
-}
-resultArr = append(resultArr, itemFlag)
-}
-{{- else if or (eq .TypeObj.ElemSchemaText "int") (eq .TypeObj.ElemSchemaText "int8") (eq .TypeObj.ElemSchemaText "int16") (eq .TypeObj.ElemSchemaText "int32") (eq .TypeObj.ElemSchemaText "int64") }}
-resultArr := make({{ .GoTypeText }}, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-rawValue, okItem := toInt64(itemValue)
-if !okItem || !validateSignedRange(rawValue, {{ bitSizeLiteral . }}) {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be integer", itemIndex)
-}
-resultArr = append(resultArr, {{ elemGoType . }}(rawValue))
-}
-{{- else if or (eq .TypeObj.ElemSchemaText "uint") (eq .TypeObj.ElemSchemaText "uint8") (eq .TypeObj.ElemSchemaText "uint16") (eq .TypeObj.ElemSchemaText "uint32") (eq .TypeObj.ElemSchemaText "uint64") }}
-resultArr := make({{ .GoTypeText }}, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-rawValue, okItem := toUint64(itemValue)
-if !okItem || !validateUnsignedRange(rawValue, {{ bitSizeLiteral . }}) {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be unsigned integer", itemIndex)
-}
-resultArr = append(resultArr, {{ elemGoType . }}(rawValue))
-}
-{{- else if or (eq .TypeObj.ElemSchemaText "float") (eq .TypeObj.ElemSchemaText "float32") (eq .TypeObj.ElemSchemaText "float64") }}
-resultArr := make({{ .GoTypeText }}, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-rawValue, okItem := toFloat64(itemValue)
-if !okItem || !validateFloatRange(rawValue, {{ bitSizeLiteral . }}) {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be float", itemIndex)
-}
-resultArr = append(resultArr, {{ elemGoType . }}(rawValue))
-}
-{{- else if or (eq .TypeObj.ElemSchemaText "duration") (eq .TypeObj.ElemSchemaText "time.Duration") }}
-resultArr := make([]time.Duration, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-switch typedItem := itemValue.(type) {
-case time.Duration:
-resultArr = append(resultArr, typedItem)
-case string:
-parsedValue, err := time.ParseDuration(strings.TrimSpace(typedItem))
-if err != nil {
-return fmt.Errorf("field [{{ .PathText }}][%d]: %w", itemIndex, err)
-}
-resultArr = append(resultArr, parsedValue)
-default:
-return fmt.Errorf("field [{{ .PathText }}][%d] unsupported type %T", itemIndex, itemValue)
-}
-}
-{{- else if eq .TypeObj.ElemSchemaText "size" }}
-resultArr := make([]SizeObj, 0, len(inputArr))
-for itemIndex, itemValue := range inputArr {
-switch typedItem := itemValue.(type) {
-case SizeObj:
-resultArr = append(resultArr, typedItem)
-case uint64:
-resultArr = append(resultArr, SizeObj(typedItem))
-case int:
-if typedItem < 0 {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be non-negative", itemIndex)
-}
-resultArr = append(resultArr, SizeObj(typedItem))
-case float64:
-rawValue, okItem := toUint64(typedItem)
-if !okItem {
-return fmt.Errorf("field [{{ .PathText }}][%d] must be non-negative integer", itemIndex)
-}
-resultArr = append(resultArr, SizeObj(rawValue))
-case string:
-parsedValue, err := parseSize(strings.TrimSpace(typedItem))
-if err != nil {
-return fmt.Errorf("field [{{ .PathText }}][%d]: %w", itemIndex, err)
-}
-resultArr = append(resultArr, SizeObj(parsedValue))
-default:
-return fmt.Errorf("field [{{ .PathText }}][%d] unsupported type %T", itemIndex, itemValue)
-}
-}
-{{- else }}
-return fmt.Errorf("unsupported array element type for [{{ .PathText }}]: {{ .TypeObj.ElemSchemaText }}")
-{{- end }}
-{{- end -}}

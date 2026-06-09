@@ -20,6 +20,7 @@ For one schema, `goconfgen` produces a directory of Go files:
 | `accessors_gen.go` | `New`, `ApplyDefaults`, origin tracking, merge helpers, generated setters                         |
 | `enums_gen.go`     | enum types, constants, parsers, text/json marshal helpers                                         |
 | `helpers_gen.go`   | shared runtime helpers used by parsers, renderers, CLI, duplicate-key checks, scalar conversion   |
+| `formats.go`       | `FormatObj` array (`Formats`, `FormatNames`, `FormatByName`) with a uniform parse/render method set |
 | `parse_yaml.go`    | YAML parser when YAML format is enabled                                                           |
 | `parse_json.go`    | JSON parser when JSON format is enabled                                                           |
 | `parse_hjson.go`   | HJSON parser when HJSON format is enabled                                                         |
@@ -33,7 +34,7 @@ For one schema, `goconfgen` produces a directory of Go files:
 
 The checked-in example source is in
 [examples/source](examples/source), and the generated reference package is in
-[examples/complex/target](examples/complex/target).
+[examples/variants/complex/target](examples/variants/complex/target).
 
 ## Generator Pipeline
 
@@ -332,6 +333,8 @@ Primary runtime entrypoints:
 | `RenderYAML(partial bool)`                                          | render YAML when generated                      |
 | `RenderJSON(partial bool)`                                          | render JSON when generated                      |
 | `RenderHJSON(partial bool)`                                         | render HJSON when generated                     |
+| `Formats() []FormatObj`                                            | enabled formats with uniform `Name`/`Parse`/`Render`/`CanRender` |
+| `FormatByName(name string) (FormatObj, bool)`                      | look up an enabled format object by name        |
 
 ## Parser Behavior
 
@@ -631,22 +634,22 @@ the target directory.
 
 ## Repository Layout
 
-| Path                      | Purpose                                                    |
-|---------------------------|------------------------------------------------------------|
-| `cmd/goconfgen`           | thin CLI wrapper                                           |
-| `config.go`               | public config normalization                                |
-| `run.go`                  | public generator entrypoint                                |
-| `write.go`                | output directory and atomic write behavior                 |
-| `internal/source`         | input file loading                                         |
-| `internal/schema`         | schema parsing, type parsing, default validation           |
-| `internal/semantic`       | Go name derivation, field model, presets, semantic checks  |
-| `internal/emit`           | template rendering and generated file selection            |
-| `internal/emit/templates` | templates for generated package files                      |
-| `internal/yamltool`       | shared `yaml.Node` helpers                                 |
-| `examples/source`         | example schema and optional presets                        |
-| `examples/complex/target` | checked-in generated reference package                     |
-| `examples/variants`       | selective generation examples                              |
-| `run_test.go`             | integration tests around generation and generated packages |
+| Path                               | Purpose                                                    |
+|------------------------------------|------------------------------------------------------------|
+| `cmd/goconfgen`                    | thin CLI wrapper                                           |
+| `config.go`                        | public config normalization                                |
+| `run.go`                           | public generator entrypoint                                |
+| `write.go`                         | output directory and atomic write behavior                 |
+| `internal/source`                  | input file loading                                         |
+| `internal/schema`                  | schema parsing, type parsing, default validation           |
+| `internal/semantic`                | Go name derivation, field model, presets, semantic checks  |
+| `internal/emit`                    | template rendering and generated file selection            |
+| `internal/emit/templates`          | templates for generated package files                      |
+| `internal/yamltool`                | shared `yaml.Node` helpers                                 |
+| `examples/source`                  | example schema and optional presets                        |
+| `examples/variants/complex/target` | checked-in generated reference package                     |
+| `examples/variants`                | selective generation examples                              |
+| `run_test.go`                      | integration tests around generation and generated packages |
 
 ## End-to-End Example
 
@@ -655,7 +658,7 @@ Generate a package:
 ```bash
 go run ./cmd/goconfgen \
   -source ./examples/source \
-  -out ./examples/complex/target \
+  -out ./examples/variants/complex/target \
   -pkg complexcfg \
   -formats yaml,json,hjson \
   -force

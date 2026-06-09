@@ -133,10 +133,6 @@ func collectRuntimeImports(packageObj *semantic.PackageObj) []string {
 	return sortedImportArr(importTextMap)
 }
 
-func collectPresetImports(packageObj *semantic.PackageObj) []string {
-	return nil
-}
-
 func sortedImportArr(importTextMap map[string]bool) []string {
 	resultArr := make([]string, 0, len(importTextMap))
 	for importText := range importTextMap {
@@ -152,21 +148,6 @@ func interfaceReturnType(branchObj *semantic.BranchObj) string {
 	}
 
 	return branchObj.TypeNameText
-}
-
-func fieldGoType(fieldObj *semantic.FieldObj) string {
-	switch {
-	case fieldObj.TypeObj.IsEnum && fieldObj.TypeObj.Family == "scalar":
-		return fieldObj.EnumObj.TypeName
-	case fieldObj.TypeObj.IsEnum && fieldObj.TypeObj.Family == "array":
-		return "[]" + fieldObj.EnumObj.TypeName
-	case fieldObj.TypeObj.IsSize && fieldObj.TypeObj.Family == "scalar":
-		return "SizeObj"
-	case fieldObj.TypeObj.IsSize && fieldObj.TypeObj.Family == "array":
-		return "[]SizeObj"
-	default:
-		return fieldObj.TypeObj.GoText
-	}
 }
 
 func elemGoType(fieldObj *semantic.FieldObj) string {
@@ -185,15 +166,11 @@ func quoteJoin(textArr []string) string {
 	return strings.Join(partArr, ", ")
 }
 
-func enumValueArr(fieldObj *semantic.FieldObj) []string {
+func enumValues(fieldObj *semantic.FieldObj) []string {
 	if fieldObj.EnumObj == nil {
 		return nil
 	}
 	return fieldObj.EnumObj.ValueTextArr
-}
-
-func enumValues(fieldObj *semantic.FieldObj) []string {
-	return enumValueArr(fieldObj)
 }
 
 func boolLiteral(flag bool) string {

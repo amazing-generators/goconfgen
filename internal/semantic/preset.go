@@ -367,7 +367,12 @@ func renderPresetHJSONValue(nodeObj *presetRenderNodeObj, indentText string) ([]
 	optsObj.EmitRootBraces = false
 	optsObj.IndentBy = "  "
 	optsObj.BaseIndentation = indentText
-	return hjson.MarshalWithOptions(nodeObj.ValueObj, optsObj)
+	dataArr, err := hjson.MarshalWithOptions(nodeObj.ValueObj, optsObj)
+	if err != nil {
+		return nil, err
+	}
+	// Первая строка значения идёт сразу после "key: "; базовый отступ нужен лишь продолжениям.
+	return bytes.TrimLeft(dataArr, " "), nil
 }
 
 func renderPresetHJSONKeyText(keyText string) ([]byte, error) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/amazing-generators/goconfgen/internal/semantic"
@@ -72,7 +73,7 @@ func normalizeConfig(config ConfigObj) (*normalizedConfigObj, error) {
 		return nil, err
 	}
 
-	formatTextArr, hasYAMLFlag, hasJSONFlag, hasHJSONFlag, err := normalizeFormats(config.Formats)
+	formatTextArr, formatSet, err := normalizeFormats(config.Formats)
 	if err != nil {
 		return nil, err
 	}
@@ -92,40 +93,12 @@ func normalizeConfig(config ConfigObj) (*normalizedConfigObj, error) {
 			return nil, err
 		}
 
-		if explicitPath, existsFlag := presetPathMap["minimal"]; existsFlag {
-			minimalPath, err = absExistingFile(explicitPath, "minimal preset")
-			if err != nil {
-				return nil, err
-			}
-			minimalFound = true
-			delete(presetPathMap, "minimal")
-			if autoPath, autoFlag, autoErr := resolveOptionalFile("", sourceDir, cDefaultMinimalFile, "minimal preset"); autoErr != nil {
-				return nil, autoErr
-			} else if autoFlag && autoPath != "" {
-				return nil, fmt.Errorf("preset name [minimal] is specified both explicitly and via source directory autodetection")
-			}
-		} else {
-			minimalPath, minimalFound, err = resolveOptionalFile("", sourceDir, cDefaultMinimalFile, "minimal preset")
-		}
+		minimalPath, minimalFound, err = resolveReservedPreset("minimal", cDefaultMinimalFile, sourceDir, presetPathMap)
 		if err != nil {
 			return nil, err
 		}
 
-		if explicitPath, existsFlag := presetPathMap["medium"]; existsFlag {
-			mediumPath, err = absExistingFile(explicitPath, "medium preset")
-			if err != nil {
-				return nil, err
-			}
-			mediumFound = true
-			delete(presetPathMap, "medium")
-			if autoPath, autoFlag, autoErr := resolveOptionalFile("", sourceDir, cDefaultMediumFile, "medium preset"); autoErr != nil {
-				return nil, autoErr
-			} else if autoFlag && autoPath != "" {
-				return nil, fmt.Errorf("preset name [medium] is specified both explicitly and via source directory autodetection")
-			}
-		} else {
-			mediumPath, mediumFound, err = resolveOptionalFile("", sourceDir, cDefaultMediumFile, "medium preset")
-		}
+		mediumPath, mediumFound, err = resolveReservedPreset("medium", cDefaultMediumFile, sourceDir, presetPathMap)
 		if err != nil {
 			return nil, err
 		}
@@ -150,9 +123,9 @@ func normalizeConfig(config ConfigObj) (*normalizedConfigObj, error) {
 			PresetPathMap:  presetPathMap,
 			PackageName:    packageName,
 			Formats:        formatTextArr,
-			HasYAML:        hasYAMLFlag,
-			HasJSON:        hasJSONFlag,
-			HasHJSON:       hasHJSONFlag,
+			HasYAML:        formatSet.HasYAML,
+			HasJSON:        formatSet.HasJSON,
+			HasHJSON:       formatSet.HasHJSON,
 			HasCLI:         hasCLIFlag,
 			HasValidate:    hasValidateFlag,
 			HasRender:      hasRenderFlag,
@@ -166,9 +139,15 @@ func normalizeConfig(config ConfigObj) (*normalizedConfigObj, error) {
 	}, nil
 }
 
-func normalizeFormats(formatTextArr []string) ([]string, bool, bool, bool, error) {
+type formatSetObj struct {
+	HasYAML  bool
+	HasJSON  bool
+	HasHJSON bool
+}
+
+func normalizeFormats(formatTextArr []string) ([]string, formatSetObj, error) {
 	if len(formatTextArr) == 0 {
-		return nil, false, false, false, fmt.Errorf("formats must not be empty")
+		return nil, formatSetObj{}, fmt.Errorf("formats must not be empty")
 	}
 
 	seenFormatMap := make(map[string]struct{}, len(formatTextArr))
@@ -179,7 +158,7 @@ func normalizeFormats(formatTextArr []string) ([]string, bool, bool, bool, error
 		switch formatText {
 		case "yaml", "json", "hjson":
 		default:
-			return nil, false, false, false, fmt.Errorf("unsupported format: %s", formatText)
+			return nil, formatSetObj{}, fmt.Errorf("unsupported format: %s", formatText)
 		}
 
 		if _, existsFlag := seenFormatMap[formatText]; existsFlag {
@@ -190,11 +169,38 @@ func normalizeFormats(formatTextArr []string) ([]string, bool, bool, bool, error
 		resultArr = append(resultArr, formatText)
 	}
 
-	if len(resultArr) == 0 {
-		return nil, false, false, false, fmt.Errorf("no formats are enabled")
+	return resultArr, formatSetObj{
+		HasYAML:  slices.Contains(resultArr, "yaml"),
+		HasJSON:  slices.Contains(resultArr, "json"),
+		HasHJSON: slices.Contains(resultArr, "hjson"),
+	}, nil
+}
+
+// resolveReservedPreset разрешает зарезервированный пресет (minimal/medium): явный путь имеет
+// приоритет, но не должен конфликтовать с автодетектом одноимённого файла в источнике.
+func resolveReservedPreset(nameText string, defaultFile string, sourceDir string, presetPathMap map[string]string) (string, bool, error) {
+	labelText := nameText + " preset"
+
+	explicitPath, existsFlag := presetPathMap[nameText]
+	if !existsFlag {
+		return resolveOptionalFile("", sourceDir, defaultFile, labelText)
 	}
 
-	return resultArr, containsTextObj(resultArr, "yaml"), containsTextObj(resultArr, "json"), containsTextObj(resultArr, "hjson"), nil
+	resolvedPath, err := absExistingFile(explicitPath, labelText)
+	if err != nil {
+		return "", false, err
+	}
+	delete(presetPathMap, nameText)
+
+	autoPath, autoFlag, autoErr := resolveOptionalFile("", sourceDir, defaultFile, labelText)
+	if autoErr != nil {
+		return "", false, autoErr
+	}
+	if autoFlag && autoPath != "" {
+		return "", false, fmt.Errorf("preset name [%s] is specified both explicitly and via source directory autodetection", nameText)
+	}
+
+	return resolvedPath, true, nil
 }
 
 func normalizeBool(valueFlag *bool, defaultFlag bool) bool {
@@ -416,14 +422,4 @@ func sanitizePackageName(packageName string) string {
 	}
 
 	return resultValue
-}
-
-func containsTextObj(textArr []string, textValue string) bool {
-	for _, itemText := range textArr {
-		if itemText == textValue {
-			return true
-		}
-	}
-
-	return false
 }

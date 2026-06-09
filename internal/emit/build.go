@@ -69,29 +69,6 @@ func GeneratedFileNameArr(packageObj *semantic.PackageObj) []string {
 	return resultArr
 }
 
-func KnownGeneratedFileNameArr() []string {
-	resultArr := make([]string, 0, len(cFileSpecArr)+16)
-	for _, specObj := range cFileSpecArr {
-		resultArr = append(resultArr, specObj.NameText)
-	}
-	resultArr = append(resultArr,
-		"schema_gen.go",
-		"field_meta_gen.go",
-		"runtime_gen.go",
-		"validate_gen.go",
-		"flags_gen.go",
-		"presets_gen.go",
-		"parsers_gen.go",
-		"parser_yaml_gen.go",
-		"parser_json_gen.go",
-		"parser_hjson_gen.go",
-		"parser_cli_gen.go",
-		"parse_gen.go",
-		"render_gen.go",
-	)
-	return resultArr
-}
-
 type fileSpecObj struct {
 	NameText  string
 	Predicate func(*semantic.PackageObj) bool
@@ -102,6 +79,7 @@ var cFileSpecArr = []fileSpecObj{
 	{"enums_gen.go", func(packageObj *semantic.PackageObj) bool { return len(packageObj.EnumObjArr) > 0 }},
 	{"helpers_gen.go", alwaysFile},
 	{"accessors_gen.go", alwaysFile},
+	{"formats.go", alwaysFile},
 	{"parse_yaml.go", func(packageObj *semantic.PackageObj) bool { return packageObj.HasYAML }},
 	{"parse_json.go", func(packageObj *semantic.PackageObj) bool { return packageObj.HasJSON }},
 	{"parse_hjson.go", func(packageObj *semantic.PackageObj) bool { return packageObj.HasHJSON }},
@@ -153,7 +131,6 @@ func buildTemplateData(packageObj *semantic.PackageObj) (*TemplateDataObj, error
 		RuntimeImportTextArr:   collectRuntimeImports(packageObj),
 		FlagImportTextArr:      collectFlagImports(packageObj),
 		ValidateImportTextArr:  collectValidateImports(packageObj),
-		PresetImportTextArr:    collectPresetImports(packageObj),
 		PresetObjArr:           presetObjArr,
 		PresetDataArr:          presetDataArr,
 	}, nil
