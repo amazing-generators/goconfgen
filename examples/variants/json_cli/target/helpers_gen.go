@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // // // // // // // // // //
@@ -780,7 +778,6 @@ func applyMapArraysObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 }
 
 // // // // // // // // // //
-
 func decodeJSONValue(dataArr []byte, targetObj any) error {
 	decoderObj := json.NewDecoder(bytes.NewReader(dataArr))
 	if err := decoderObj.Decode(targetObj); err != nil {
@@ -862,31 +859,6 @@ func validateJSONValueKeys(decoderObj *json.Decoder, prefixText string, depthVal
 		}
 		if endTokenObj != json.Delim(']') {
 			return fmt.Errorf("invalid json array end")
-		}
-	}
-	return nil
-}
-
-func validateDuplicateKeysYAML(nodeObj *yaml.Node, prefixText string) error {
-	if nodeObj.Kind != yaml.MappingNode {
-		for _, childNodeObj := range nodeObj.Content {
-			if err := validateDuplicateKeysYAML(childNodeObj, prefixText); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	seenMap := make(map[string]struct{}, len(nodeObj.Content)/2)
-	for itemIndex := 0; itemIndex < len(nodeObj.Content); itemIndex += 2 {
-		keyNodeObj := nodeObj.Content[itemIndex]
-		valueNodeObj := nodeObj.Content[itemIndex+1]
-		pathText := joinPathText(prefixText, keyNodeObj.Value)
-		if _, existsFlag := seenMap[keyNodeObj.Value]; existsFlag {
-			return fmt.Errorf("duplicate key in config: %s", pathText)
-		}
-		seenMap[keyNodeObj.Value] = struct{}{}
-		if err := validateDuplicateKeysYAML(valueNodeObj, pathText); err != nil {
-			return err
 		}
 	}
 	return nil
@@ -1126,7 +1098,6 @@ func parseStringMapShorthand(textValue string) (map[string]string, error) {
 	}
 	return resultObj, nil
 }
-
 func parseJSONStringMap[T any](textValue string) (T, error) {
 	var resultObj T
 	err := json.Unmarshal([]byte(textValue), &resultObj)
@@ -1223,7 +1194,6 @@ func (obj *runtimeBoolFlagObj) Set(valueText string) error {
 func (obj *runtimeBoolFlagObj) IsBoolFlag() bool {
 	return true
 }
-
 func normalizeAnyMap(valueObj any) any {
 	switch typedValue := valueObj.(type) {
 	case map[string]any:

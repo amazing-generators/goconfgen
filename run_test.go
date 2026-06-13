@@ -620,6 +620,39 @@ func TestSelectiveFormatsWithoutCLIObj(t *testing.T) {
 	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
 }
 
+func TestSelectiveJSONDoesNotImportDisabledFormatsObj(t *testing.T) {
+	t.Helper()
+
+	repoRootPath, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("read working directory: %v", err)
+	}
+
+	sourcePath := writeComplexSourceDirObj(t)
+	outputPath := filepath.Join(t.TempDir(), "generated")
+	falseFlag := false
+	if _, err = Run(ConfigObj{
+		SourceDir:   sourcePath,
+		OutputDir:   outputPath,
+		PackageName: "jsononlycfg",
+		Formats:     []string{"json"},
+		Features: FeaturesObj{
+			Presets: &falseFlag,
+		},
+		Force: true,
+	}); err != nil {
+		t.Fatalf("run generator: %v", err)
+	}
+
+	assertFilesDoNotContainObj(t, outputPath, []string{
+		"gopkg.in/yaml.v3",
+		"github.com/hjson/hjson-go/v4",
+	})
+
+	smokeText := "package jsononlycfg\n\nimport \"testing\"\n\nfunc TestGeneratedJSONOnlyObj(t *testing.T) {\n\tobj, err := parseJSONBytes([]byte(`{\"server\":{\"port\":9090}}`), true)\n\tif err != nil {\n\t\tt.Fatalf(\"parse json: %v\", err)\n\t}\n\tif obj.Server.Port != 9090 {\n\t\tt.Fatalf(\"unexpected parsed port: %d\", obj.Server.Port)\n\t}\n}\n"
+	assertGeneratedPackageSmokeObj(t, repoRootPath, outputPath, smokeText)
+}
+
 func TestSelectiveGenerationRemovesStaleFilesObj(t *testing.T) {
 	t.Helper()
 

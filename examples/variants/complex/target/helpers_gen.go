@@ -7,14 +7,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"io"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // // // // // // // // // //
@@ -780,7 +779,6 @@ func applyMapArraysObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 }
 
 // // // // // // // // // //
-
 func decodeJSONValue(dataArr []byte, targetObj any) error {
 	decoderObj := json.NewDecoder(bytes.NewReader(dataArr))
 	if err := decoderObj.Decode(targetObj); err != nil {
@@ -866,7 +864,6 @@ func validateJSONValueKeys(decoderObj *json.Decoder, prefixText string, depthVal
 	}
 	return nil
 }
-
 func validateDuplicateKeysYAML(nodeObj *yaml.Node, prefixText string) error {
 	if nodeObj.Kind != yaml.MappingNode {
 		for _, childNodeObj := range nodeObj.Content {
@@ -1126,7 +1123,6 @@ func parseStringMapShorthand(textValue string) (map[string]string, error) {
 	}
 	return resultObj, nil
 }
-
 func parseJSONStringMap[T any](textValue string) (T, error) {
 	var resultObj T
 	err := json.Unmarshal([]byte(textValue), &resultObj)
@@ -1223,7 +1219,6 @@ func (obj *runtimeBoolFlagObj) Set(valueText string) error {
 func (obj *runtimeBoolFlagObj) IsBoolFlag() bool {
 	return true
 }
-
 func normalizeAnyMap(valueObj any) any {
 	switch typedValue := valueObj.(type) {
 	case map[string]any:

@@ -98,36 +98,25 @@ func collectFlagImports(packageObj *semantic.PackageObj) []string {
 
 func collectRuntimeImports(packageObj *semantic.PackageObj) []string {
 	importTextMap := map[string]bool{
-		"fmt":           true,
-		"math":          true,
-		"os":            true,
-		"path/filepath": true,
-		"strings":       true,
+		"fmt":     true,
+		"math":    true,
+		"strconv": true,
+		"strings": true,
+		"time":    true,
 	}
 
-	if packageObj.HasYAML || packageObj.HasJSON || packageObj.HasHJSON {
+	if packageObj.HasJSON {
 		importTextMap["bytes"] = true
+		importTextMap["io"] = true
 	}
 	if packageObj.HasYAML {
 		importTextMap["gopkg.in/yaml.v3"] = true
 	}
-	if packageObj.HasJSON || packageObj.HasHJSON || packageObj.HasCLI {
+	if packageObj.HasJSON || packageObj.HasCLI {
 		importTextMap["encoding/json"] = true
-	}
-	if packageObj.HasJSON {
-		importTextMap["io"] = true
-	}
-	if packageObj.HasHJSON {
-		importTextMap["github.com/hjson/hjson-go/v4"] = true
-	}
-	if packageObj.HasJSON || packageObj.HasSize || packageObj.HasCLI {
-		importTextMap["strconv"] = true
 	}
 	if packageObj.HasMapAny {
 		importTextMap["sort"] = true
-	}
-	if packageObj.HasTextSlice {
-		importTextMap["fmt"] = true
 	}
 
 	return sortedImportArr(importTextMap)

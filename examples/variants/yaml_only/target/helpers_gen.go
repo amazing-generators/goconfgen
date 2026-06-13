@@ -4,17 +4,13 @@
 package yamlonlycfg
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
+	"gopkg.in/yaml.v3"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // // // // // // // // // //
@@ -777,93 +773,6 @@ func applyMapArraysObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 }
 
 // // // // // // // // // //
-
-func decodeJSONValue(dataArr []byte, targetObj any) error {
-	decoderObj := json.NewDecoder(bytes.NewReader(dataArr))
-	if err := decoderObj.Decode(targetObj); err != nil {
-		return err
-	}
-	var trailingObj any
-	if err := decoderObj.Decode(&trailingObj); err != io.EOF {
-		if err == nil {
-			return fmt.Errorf("trailing json token")
-		}
-		return err
-	}
-	return nil
-}
-
-func validateJSONDuplicateKeys(dataArr []byte) error {
-	decoderObj := json.NewDecoder(bytes.NewReader(dataArr))
-	if err := validateJSONValueKeys(decoderObj, "", 0); err != nil {
-		return err
-	}
-	if _, err := decoderObj.Token(); err != io.EOF {
-		if err == nil {
-			return fmt.Errorf("trailing json token")
-		}
-		return err
-	}
-	return nil
-}
-
-func validateJSONValueKeys(decoderObj *json.Decoder, prefixText string, depthVal int) error {
-	if depthVal > 256 {
-		return fmt.Errorf("json nesting is too deep")
-	}
-	tokenObj, err := decoderObj.Token()
-	if err != nil {
-		return err
-	}
-	delimiterObj, ok := tokenObj.(json.Delim)
-	if !ok {
-		return nil
-	}
-	switch delimiterObj {
-	case '{':
-		seenMap := map[string]struct{}{}
-		for decoderObj.More() {
-			keyTokenObj, keyErr := decoderObj.Token()
-			if keyErr != nil {
-				return keyErr
-			}
-			keyText, okKey := keyTokenObj.(string)
-			if !okKey {
-				return fmt.Errorf("json object key must be string")
-			}
-			pathText := joinPathText(prefixText, keyText)
-			if _, existsFlag := seenMap[keyText]; existsFlag {
-				return fmt.Errorf("duplicate key in config: %s", pathText)
-			}
-			seenMap[keyText] = struct{}{}
-			if err = validateJSONValueKeys(decoderObj, pathText, depthVal+1); err != nil {
-				return err
-			}
-		}
-		endTokenObj, endErr := decoderObj.Token()
-		if endErr != nil {
-			return endErr
-		}
-		if endTokenObj != json.Delim('}') {
-			return fmt.Errorf("invalid json object end")
-		}
-	case '[':
-		for decoderObj.More() {
-			if err = validateJSONValueKeys(decoderObj, prefixText, depthVal+1); err != nil {
-				return err
-			}
-		}
-		endTokenObj, endErr := decoderObj.Token()
-		if endErr != nil {
-			return endErr
-		}
-		if endTokenObj != json.Delim(']') {
-			return fmt.Errorf("invalid json array end")
-		}
-	}
-	return nil
-}
-
 func validateDuplicateKeysYAML(nodeObj *yaml.Node, prefixText string) error {
 	if nodeObj.Kind != yaml.MappingNode {
 		for _, childNodeObj := range nodeObj.Content {
@@ -1124,12 +1033,6 @@ func parseStringMapShorthand(textValue string) (map[string]string, error) {
 	return resultObj, nil
 }
 
-func parseJSONStringMap[T any](textValue string) (T, error) {
-	var resultObj T
-	err := json.Unmarshal([]byte(textValue), &resultObj)
-	return resultObj, err
-}
-
 // validateShorthandKey accepts the key characters that configuration files allow for map
 // keys (letters, digits, '_', '-', '.'); any other character makes the value fall back to the
 // JSON form, which can represent arbitrary keys.
@@ -1220,7 +1123,6 @@ func (obj *runtimeBoolFlagObj) Set(valueText string) error {
 func (obj *runtimeBoolFlagObj) IsBoolFlag() bool {
 	return true
 }
-
 func normalizeAnyMap(valueObj any) any {
 	switch typedValue := valueObj.(type) {
 	case map[string]any:

@@ -1,17 +1,9 @@
 package {{ .PackageName }}
 
 import (
-"bytes"
-"encoding/json"
-"fmt"
-"io"
-"math"
-"sort"
-"strconv"
-"strings"
-"time"
-
-"gopkg.in/yaml.v3"
+{{- range .RuntimeImportTextArr }}
+{{ importLine . }}
+{{- end }}
 )
 
 // // // // // // // // // //
@@ -66,6 +58,7 @@ return obj, nil
 
 // // // // // // // // // //
 
+{{- if .HasJSON }}
 func decodeJSONValue(dataArr []byte, targetObj any) error {
 decoderObj := json.NewDecoder(bytes.NewReader(dataArr))
 if err := decoderObj.Decode(targetObj); err != nil {
@@ -151,7 +144,9 @@ return fmt.Errorf("invalid json array end")
 }
 return nil
 }
+{{- end }}
 
+{{- if .HasYAML }}
 func validateDuplicateKeysYAML(nodeObj *yaml.Node, prefixText string) error {
 if nodeObj.Kind != yaml.MappingNode {
 for _, childNodeObj := range nodeObj.Content {
@@ -176,6 +171,7 @@ return err
 }
 return nil
 }
+{{- end }}
 
 // // // // // // // // // //
 
@@ -412,11 +408,13 @@ resultObj[keyText] = strings.TrimSpace(partTextArr[1])
 return resultObj, nil
 }
 
+{{- if .HasCLI }}
 func parseJSONStringMap[T any](textValue string) (T, error) {
 var resultObj T
 err := json.Unmarshal([]byte(textValue), &resultObj)
 return resultObj, err
 }
+{{- end }}
 
 // validateShorthandKey accepts the key characters that configuration files allow for map
 // keys (letters, digits, '_', '-', '.'); any other character makes the value fall back to the
@@ -509,6 +507,7 @@ func (obj *runtimeBoolFlagObj) IsBoolFlag() bool {
 return true
 }
 
+{{- if .HasMapAny }}
 func normalizeAnyMap(valueObj any) any {
 switch typedValue := valueObj.(type) {
 case map[string]any:
@@ -539,9 +538,10 @@ default:
 return typedValue
 }
 }
+{{- end }}
 
 {{ range .FieldObjArr }}
-    func renderValue{{ goName .PathText }}(obj *ConfigObj) (any, error) {
+func renderValue{{ goName .PathText }}(obj *ConfigObj) (any, error) {
     {{ fieldRenderValue . }}
 }
 {{ end }}
