@@ -102,10 +102,17 @@ bufferObj.WriteString(": ")
 func renderHJSONValue(valueObj any, indentText string) ([]byte, error) {
 optsObj := hjson.DefaultOptions()
 optsObj.Comments = false
-optsObj.EmitRootBraces = false
+// Значение-лист может быть объектом (map): ему нужны фигурные скобки, иначе пары ключ-значение
+// вылезают на строку с именем поля и ломают HJSON. Скобки самого корня пишет appendHJSONBranch.
+optsObj.EmitRootBraces = true
 optsObj.IndentBy = "  "
 optsObj.BaseIndentation = indentText
-return hjson.MarshalWithOptions(valueObj, optsObj)
+dataArr, err := hjson.MarshalWithOptions(valueObj, optsObj)
+if err != nil {
+return nil, err
+}
+// Базовый отступ нужен для строк-продолжений, но первая строка идёт сразу после "key: ".
+return bytes.TrimLeft(dataArr, " "), nil
 }
 
 func renderHJSONKeyText(keyText string) ([]byte, error) {

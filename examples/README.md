@@ -7,6 +7,17 @@ All generated examples in this directory use the same source files:
 - `source/medium.yml`
 
 The generated packages are intentionally checked in so output differences between generation modes are easy to inspect.
+The source schema also demonstrates explicit enum naming with `enum_name: global-log`, which becomes `GlobalLogEnum`
+and constants such as `GlobalLogWarn`.
+
+`source/config.yml` is a full-coverage ("kitchen-sink") schema: it exercises every supported scalar, array, and map
+type,
+every integer/float width, the `duration` / `time.Duration` and `size` types, inline enums, and generated interfaces.
+This makes the checked-in packages a complete golden reference, so regenerating after a generator change surfaces any
+behavioral drift via `git diff`.
+
+Regenerate every example at once with [`../_run/regen-examples.sh`](../_run/regen-examples.sh); it also fails if
+regeneration produces any drift against the committed tree.
 
 ## Full complex example
 
@@ -16,7 +27,7 @@ This is the canonical "everything enabled" example; variants below only show red
 ```bash
 go run ./../cmd/goconfgen \
   -source ./source \
-  -out ./complex/target \
+  -out ./variants/complex/target \
   -pkg complexcfg \
   -formats yaml,json,hjson \
   -force

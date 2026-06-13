@@ -80,6 +80,12 @@ type ConfigObj struct {
 	Labels LabelsObj
 	// Arbitrary extension payload.
 	Extensions ExtensionsObj
+	// Scalar numeric type coverage.
+	// Exercises every supported integer, float, duration, and size width.
+	Numbers NumbersObj
+	// Array type coverage.
+	// One field per supported array element type.
+	Arrays ArraysObj
 }
 
 type ServerObj struct {
@@ -93,7 +99,7 @@ type ServerObj struct {
 
 type LoggingObj struct {
 	// Minimum log level.
-	Level LoggingLevelEnum
+	Level GlobalLogEnum
 	// Ordered logging sinks.
 	Outputs []LoggingOutputsEnum
 }
@@ -120,6 +126,70 @@ type LabelsObj struct {
 type ExtensionsObj struct {
 	// Extra unstructured payload.
 	Raw map[string]any
+}
+
+type NumbersObj struct {
+	// Signed 8-bit value.
+	I8 int8
+	// Signed 16-bit value.
+	I16 int16
+	// Signed 32-bit value.
+	I32 int32
+	// Signed 64-bit value.
+	I64 int64
+	// Unsigned word value.
+	U uint
+	// Unsigned 8-bit value.
+	U8 uint8
+	// Unsigned 16-bit value.
+	U16 uint16
+	// Unsigned 32-bit value.
+	U32 uint32
+	// Unsigned 64-bit value.
+	U64 uint64
+	// 32-bit float alias.
+	F float32
+	// 32-bit float.
+	F32 float32
+	// 64-bit float.
+	F64 float64
+	// Duration via Go alias type.
+	DurAlias time.Duration
+}
+
+type ArraysObj struct {
+	// Bool array.
+	Bools []bool
+	// Int array.
+	Ints []int
+	// Int8 array.
+	I8S []int8
+	// Int16 array.
+	I16S []int16
+	// Int32 array.
+	I32S []int32
+	// Int64 array.
+	I64S []int64
+	// Uint array.
+	Us []uint
+	// Uint8 array.
+	U8S []uint8
+	// Uint16 array.
+	U16S []uint16
+	// Uint32 array.
+	U32S []uint32
+	// Uint64 array.
+	U64S []uint64
+	// Float32 array.
+	F32S []float32
+	// Float64 array.
+	F64S []float64
+	// Duration array.
+	Durations []time.Duration
+	// Duration alias array.
+	DurAliases []time.Duration
+	// Size array.
+	Sizes []SizeObj
 }
 
 type ServerInterface interface {

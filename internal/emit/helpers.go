@@ -98,43 +98,28 @@ func collectFlagImports(packageObj *semantic.PackageObj) []string {
 
 func collectRuntimeImports(packageObj *semantic.PackageObj) []string {
 	importTextMap := map[string]bool{
-		"fmt":           true,
-		"math":          true,
-		"os":            true,
-		"path/filepath": true,
-		"strings":       true,
+		"fmt":     true,
+		"math":    true,
+		"strconv": true,
+		"strings": true,
+		"time":    true,
 	}
 
-	if packageObj.HasYAML || packageObj.HasJSON || packageObj.HasHJSON {
+	if packageObj.HasJSON {
 		importTextMap["bytes"] = true
+		importTextMap["io"] = true
 	}
 	if packageObj.HasYAML {
 		importTextMap["gopkg.in/yaml.v3"] = true
 	}
-	if packageObj.HasJSON || packageObj.HasHJSON || packageObj.HasCLI {
+	if packageObj.HasJSON || packageObj.HasCLI {
 		importTextMap["encoding/json"] = true
-	}
-	if packageObj.HasJSON {
-		importTextMap["io"] = true
-	}
-	if packageObj.HasHJSON {
-		importTextMap["github.com/hjson/hjson-go/v4"] = true
-	}
-	if packageObj.HasJSON || packageObj.HasSize || packageObj.HasCLI {
-		importTextMap["strconv"] = true
 	}
 	if packageObj.HasMapAny {
 		importTextMap["sort"] = true
 	}
-	if packageObj.HasTextSlice {
-		importTextMap["fmt"] = true
-	}
 
 	return sortedImportArr(importTextMap)
-}
-
-func collectPresetImports(packageObj *semantic.PackageObj) []string {
-	return nil
 }
 
 func sortedImportArr(importTextMap map[string]bool) []string {
@@ -154,21 +139,6 @@ func interfaceReturnType(branchObj *semantic.BranchObj) string {
 	return branchObj.TypeNameText
 }
 
-func fieldGoType(fieldObj *semantic.FieldObj) string {
-	switch {
-	case fieldObj.TypeObj.IsEnum && fieldObj.TypeObj.Family == "scalar":
-		return fieldObj.EnumObj.TypeName
-	case fieldObj.TypeObj.IsEnum && fieldObj.TypeObj.Family == "array":
-		return "[]" + fieldObj.EnumObj.TypeName
-	case fieldObj.TypeObj.IsSize && fieldObj.TypeObj.Family == "scalar":
-		return "SizeObj"
-	case fieldObj.TypeObj.IsSize && fieldObj.TypeObj.Family == "array":
-		return "[]SizeObj"
-	default:
-		return fieldObj.TypeObj.GoText
-	}
-}
-
 func elemGoType(fieldObj *semantic.FieldObj) string {
 	return strings.TrimPrefix(fieldObj.GoTypeText, "[]")
 }
@@ -185,15 +155,11 @@ func quoteJoin(textArr []string) string {
 	return strings.Join(partArr, ", ")
 }
 
-func enumValueArr(fieldObj *semantic.FieldObj) []string {
+func enumValues(fieldObj *semantic.FieldObj) []string {
 	if fieldObj.EnumObj == nil {
 		return nil
 	}
 	return fieldObj.EnumObj.ValueTextArr
-}
-
-func enumValues(fieldObj *semantic.FieldObj) []string {
-	return enumValueArr(fieldObj)
 }
 
 func boolLiteral(flag bool) string {

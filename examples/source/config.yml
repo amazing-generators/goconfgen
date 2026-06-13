@@ -21,6 +21,7 @@ server:
 logging:
   usage: Logging settings.
   level:
+    enum_name: global-log
     enum: [ debug, info, warn, error ]
     usage: Minimum log level.
     value: info
@@ -75,3 +76,133 @@ extensions:
       nested:
         retries: 3
         mode: safe
+
+numbers:
+  usage:
+    - Scalar numeric type coverage.
+    - Exercises every supported integer, float, duration, and size width.
+  i8:
+    type: int8
+    usage: Signed 8-bit value.
+    value: -8
+    min: -128
+    max: 127
+  i16:
+    type: int16
+    usage: Signed 16-bit value.
+    value: 1616
+  i32:
+    type: int32
+    usage: Signed 32-bit value.
+    value: 323232
+  i64:
+    type: int64
+    usage: Signed 64-bit value.
+    value: 6464646464
+  u:
+    type: uint
+    usage: Unsigned word value.
+    value: 7
+  u8:
+    type: uint8
+    usage: Unsigned 8-bit value.
+    value: 200
+  u16:
+    type: uint16
+    usage: Unsigned 16-bit value.
+    value: 60000
+  u32:
+    type: uint32
+    usage: Unsigned 32-bit value.
+    value: 4294967295
+  u64:
+    type: uint64
+    usage: Unsigned 64-bit value.
+    value: 64
+  f:
+    type: float
+    usage: 32-bit float alias.
+    value: 1.5
+  f32:
+    type: float32
+    usage: 32-bit float.
+    value: 2.5
+  f64:
+    type: float64
+    usage: 64-bit float.
+    value: 3.5
+    min: 0.0
+    max: 1000.0
+  dur_alias:
+    type: time.Duration
+    usage: Duration via Go alias type.
+    value: 90s
+
+arrays:
+  usage:
+    - Array type coverage.
+    - One field per supported array element type.
+  bools:
+    type: "[]bool"
+    usage: Bool array.
+    value: [ true, false, true ]
+  ints:
+    type: "[]int"
+    usage: Int array.
+    value: [ 1, 2, 3 ]
+  i8s:
+    type: "[]int8"
+    usage: Int8 array.
+    value: [ -1, 0, 1 ]
+  i16s:
+    type: "[]int16"
+    usage: Int16 array.
+    value: [ 100, 200 ]
+  i32s:
+    type: "[]int32"
+    usage: Int32 array.
+    value: [ 1000 ]
+  i64s:
+    type: "[]int64"
+    usage: Int64 array.
+    value: [ 10000000000 ]
+  us:
+    type: "[]uint"
+    usage: Uint array.
+    value: [ 1, 2 ]
+  u8s:
+    type: "[]uint8"
+    usage: Uint8 array.
+    value: [ 255 ]
+  u16s:
+    type: "[]uint16"
+    usage: Uint16 array.
+    value: [ 65535 ]
+  u32s:
+    type: "[]uint32"
+    usage: Uint32 array.
+    value: [ 4294967295 ]
+  u64s:
+    type: "[]uint64"
+    usage: Uint64 array.
+    value: [ 64 ]
+  f32s:
+    type: "[]float32"
+    usage: Float32 array.
+    value: [ 1.1, 2.2 ]
+  f64s:
+    type: "[]float64"
+    usage: Float64 array.
+    value: [ 3.3 ]
+  durations:
+    type: "[]duration"
+    usage: Duration array.
+    value: [ 1s, 2s ]
+  dur_aliases:
+    type: "[]time.Duration"
+    usage: Duration alias array.
+    value: [ 5s ]
+  sizes:
+    type: "[]size"
+    usage: Size array.
+    value: [ 1KiB, 2MiB ]

@@ -4,17 +4,12 @@
 package hjsoncfg
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 // // // // // // // // // //
@@ -84,6 +79,22 @@ func applyMapConfigObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 			if err := applyMapExtensionsObj(nestedMap, obj, originObj); err != nil {
 				return err
 			}
+		case "numbers":
+			nestedMap, ok := valueObj.(map[string]any)
+			if !ok {
+				return fmt.Errorf("config field [%s] must be object", joinPathText("", keyText))
+			}
+			if err := applyMapNumbersObj(nestedMap, obj, originObj); err != nil {
+				return err
+			}
+		case "arrays":
+			nestedMap, ok := valueObj.(map[string]any)
+			if !ok {
+				return fmt.Errorf("config field [%s] must be object", joinPathText("", keyText))
+			}
+			if err := applyMapArraysObj(nestedMap, obj, originObj); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unknown config key: %s", joinPathText("", keyText))
 		}
@@ -95,21 +106,18 @@ func applyMapServerObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 	for keyText, valueObj := range valueMap {
 		switch keyText {
 		case "host":
-
 			typedValue, ok := valueObj.(string)
 			if !ok {
 				return fmt.Errorf("field [server.host] unsupported type %T", valueObj)
 			}
 			obj.setServerHost(typedValue, originObj)
 		case "port":
-
 			rawValue, ok := toInt64(valueObj)
 			if !ok || !validateSignedRange(rawValue, strconv.IntSize) {
 				return fmt.Errorf("field [server.port] unsupported integer value %v", valueObj)
 			}
 			obj.setServerPort(int(rawValue), originObj)
 		case "secure":
-
 			typedValue, ok := valueObj.(bool)
 			if !ok {
 				return fmt.Errorf("field [server.secure] unsupported type %T", valueObj)
@@ -126,21 +134,19 @@ func applyMapLoggingObj(valueMap map[string]any, obj *ConfigObj, originObj field
 	for keyText, valueObj := range valueMap {
 		switch keyText {
 		case "level":
-
 			switch typedValue := valueObj.(type) {
 			case string:
-				parsedValue, err := ParseLoggingLevelEnum(strings.TrimSpace(typedValue))
+				parsedValue, err := ParseGlobalLogEnum(strings.TrimSpace(typedValue))
 				if err != nil {
 					return fmt.Errorf("field [logging.level]: %w", err)
 				}
 				obj.setLoggingLevel(parsedValue, originObj)
-			case LoggingLevelEnum:
+			case GlobalLogEnum:
 				obj.setLoggingLevel(typedValue, originObj)
 			default:
 				return fmt.Errorf("field [logging.level] unsupported type %T", valueObj)
 			}
 		case "outputs":
-
 			typedValue, okTyped := valueObj.([]LoggingOutputsEnum)
 			if okTyped {
 				obj.setLoggingOutputs(typedValue, originObj)
@@ -174,7 +180,6 @@ func applyMapLimitsObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 	for keyText, valueObj := range valueMap {
 		switch keyText {
 		case "timeout":
-
 			switch typedValue := valueObj.(type) {
 			case time.Duration:
 				obj.setLimitsTimeout(typedValue, originObj)
@@ -188,7 +193,6 @@ func applyMapLimitsObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 				return fmt.Errorf("field [limits.timeout] unsupported type %T", valueObj)
 			}
 		case "body_max":
-
 			switch typedValue := valueObj.(type) {
 			case SizeObj:
 				obj.setLimitsBodyMax(typedValue, originObj)
@@ -230,7 +234,6 @@ func applyMapFeaturesObj(valueMap map[string]any, obj *ConfigObj, originObj fiel
 	for keyText, valueObj := range valueMap {
 		switch keyText {
 		case "enabled":
-
 			inputArr, ok := toAnySlice(valueObj)
 			if !ok {
 				typedValue, okTyped := valueObj.([]string)
@@ -240,7 +243,6 @@ func applyMapFeaturesObj(valueMap map[string]any, obj *ConfigObj, originObj fiel
 				}
 				return fmt.Errorf("field [features.enabled] unsupported type %T", valueObj)
 			}
-
 			resultArr := make([]string, 0, len(inputArr))
 			for itemIndex, itemValue := range inputArr {
 				itemText, okItem := itemValue.(string)
@@ -251,7 +253,6 @@ func applyMapFeaturesObj(valueMap map[string]any, obj *ConfigObj, originObj fiel
 			}
 			obj.setFeaturesEnabled(resultArr, originObj)
 		case "rollout":
-
 			typedValue, ok := valueObj.(map[string][]string)
 			if ok {
 				obj.setFeaturesRollout(typedValue, originObj)
@@ -289,7 +290,6 @@ func applyMapLabelsObj(valueMap map[string]any, obj *ConfigObj, originObj fieldO
 	for keyText, valueObj := range valueMap {
 		switch keyText {
 		case "common":
-
 			typedValue, ok := valueObj.(map[string]string)
 			if ok {
 				obj.setLabelsCommon(typedValue, originObj)
@@ -319,7 +319,6 @@ func applyMapExtensionsObj(valueMap map[string]any, obj *ConfigObj, originObj fi
 	for keyText, valueObj := range valueMap {
 		switch keyText {
 		case "raw":
-
 			typedValue, ok := valueObj.(map[string]any)
 			if !ok {
 				return fmt.Errorf("field [extensions.raw] unsupported type %T", valueObj)
@@ -332,118 +331,450 @@ func applyMapExtensionsObj(valueMap map[string]any, obj *ConfigObj, originObj fi
 	return nil
 }
 
+func applyMapNumbersObj(valueMap map[string]any, obj *ConfigObj, originObj fieldOriginObj) error {
+	for keyText, valueObj := range valueMap {
+		switch keyText {
+		case "i8":
+			rawValue, ok := toInt64(valueObj)
+			if !ok || !validateSignedRange(rawValue, 8) {
+				return fmt.Errorf("field [numbers.i8] unsupported integer value %v", valueObj)
+			}
+			obj.setNumbersI8(int8(rawValue), originObj)
+		case "i16":
+			rawValue, ok := toInt64(valueObj)
+			if !ok || !validateSignedRange(rawValue, 16) {
+				return fmt.Errorf("field [numbers.i16] unsupported integer value %v", valueObj)
+			}
+			obj.setNumbersI16(int16(rawValue), originObj)
+		case "i32":
+			rawValue, ok := toInt64(valueObj)
+			if !ok || !validateSignedRange(rawValue, 32) {
+				return fmt.Errorf("field [numbers.i32] unsupported integer value %v", valueObj)
+			}
+			obj.setNumbersI32(int32(rawValue), originObj)
+		case "i64":
+			rawValue, ok := toInt64(valueObj)
+			if !ok || !validateSignedRange(rawValue, 64) {
+				return fmt.Errorf("field [numbers.i64] unsupported integer value %v", valueObj)
+			}
+			obj.setNumbersI64(int64(rawValue), originObj)
+		case "u":
+			rawValue, ok := toUint64(valueObj)
+			if !ok || !validateUnsignedRange(rawValue, strconv.IntSize) {
+				return fmt.Errorf("field [numbers.u] unsupported unsigned integer value %v", valueObj)
+			}
+			obj.setNumbersU(uint(rawValue), originObj)
+		case "u8":
+			rawValue, ok := toUint64(valueObj)
+			if !ok || !validateUnsignedRange(rawValue, 8) {
+				return fmt.Errorf("field [numbers.u8] unsupported unsigned integer value %v", valueObj)
+			}
+			obj.setNumbersU8(uint8(rawValue), originObj)
+		case "u16":
+			rawValue, ok := toUint64(valueObj)
+			if !ok || !validateUnsignedRange(rawValue, 16) {
+				return fmt.Errorf("field [numbers.u16] unsupported unsigned integer value %v", valueObj)
+			}
+			obj.setNumbersU16(uint16(rawValue), originObj)
+		case "u32":
+			rawValue, ok := toUint64(valueObj)
+			if !ok || !validateUnsignedRange(rawValue, 32) {
+				return fmt.Errorf("field [numbers.u32] unsupported unsigned integer value %v", valueObj)
+			}
+			obj.setNumbersU32(uint32(rawValue), originObj)
+		case "u64":
+			rawValue, ok := toUint64(valueObj)
+			if !ok || !validateUnsignedRange(rawValue, 64) {
+				return fmt.Errorf("field [numbers.u64] unsupported unsigned integer value %v", valueObj)
+			}
+			obj.setNumbersU64(uint64(rawValue), originObj)
+		case "f":
+			rawValue, ok := toFloat64(valueObj)
+			if !ok || !validateFloatRange(rawValue, 32) {
+				return fmt.Errorf("field [numbers.f] unsupported float value %v", valueObj)
+			}
+			obj.setNumbersF(float32(rawValue), originObj)
+		case "f32":
+			rawValue, ok := toFloat64(valueObj)
+			if !ok || !validateFloatRange(rawValue, 32) {
+				return fmt.Errorf("field [numbers.f32] unsupported float value %v", valueObj)
+			}
+			obj.setNumbersF32(float32(rawValue), originObj)
+		case "f64":
+			rawValue, ok := toFloat64(valueObj)
+			if !ok || !validateFloatRange(rawValue, 64) {
+				return fmt.Errorf("field [numbers.f64] unsupported float value %v", valueObj)
+			}
+			obj.setNumbersF64(float64(rawValue), originObj)
+		case "dur_alias":
+			switch typedValue := valueObj.(type) {
+			case time.Duration:
+				obj.setNumbersDurAlias(typedValue, originObj)
+			case string:
+				parsedValue, err := time.ParseDuration(strings.TrimSpace(typedValue))
+				if err != nil {
+					return fmt.Errorf("field [numbers.dur_alias]: %w", err)
+				}
+				obj.setNumbersDurAlias(parsedValue, originObj)
+			default:
+				return fmt.Errorf("field [numbers.dur_alias] unsupported type %T", valueObj)
+			}
+		default:
+			return fmt.Errorf("unknown config key: %s", joinPathText("numbers", keyText))
+		}
+	}
+	return nil
+}
+
+func applyMapArraysObj(valueMap map[string]any, obj *ConfigObj, originObj fieldOriginObj) error {
+	for keyText, valueObj := range valueMap {
+		switch keyText {
+		case "bools":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]bool)
+				if okTyped {
+					obj.setArraysBools(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.bools] unsupported type %T", valueObj)
+			}
+			resultArr := make([]bool, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				itemFlag, okItem := itemValue.(bool)
+				if !okItem {
+					return fmt.Errorf("field [arrays.bools][%d] must be bool", itemIndex)
+				}
+				resultArr = append(resultArr, itemFlag)
+			}
+			obj.setArraysBools(resultArr, originObj)
+		case "ints":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]int)
+				if okTyped {
+					obj.setArraysInts(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.ints] unsupported type %T", valueObj)
+			}
+			resultArr := make([]int, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toInt64(itemValue)
+				if !okItem || !validateSignedRange(rawValue, strconv.IntSize) {
+					return fmt.Errorf("field [arrays.ints][%d] must be integer", itemIndex)
+				}
+				resultArr = append(resultArr, int(rawValue))
+			}
+			obj.setArraysInts(resultArr, originObj)
+		case "i8s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]int8)
+				if okTyped {
+					obj.setArraysI8S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.i8s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]int8, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toInt64(itemValue)
+				if !okItem || !validateSignedRange(rawValue, 8) {
+					return fmt.Errorf("field [arrays.i8s][%d] must be integer", itemIndex)
+				}
+				resultArr = append(resultArr, int8(rawValue))
+			}
+			obj.setArraysI8S(resultArr, originObj)
+		case "i16s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]int16)
+				if okTyped {
+					obj.setArraysI16S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.i16s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]int16, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toInt64(itemValue)
+				if !okItem || !validateSignedRange(rawValue, 16) {
+					return fmt.Errorf("field [arrays.i16s][%d] must be integer", itemIndex)
+				}
+				resultArr = append(resultArr, int16(rawValue))
+			}
+			obj.setArraysI16S(resultArr, originObj)
+		case "i32s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]int32)
+				if okTyped {
+					obj.setArraysI32S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.i32s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]int32, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toInt64(itemValue)
+				if !okItem || !validateSignedRange(rawValue, 32) {
+					return fmt.Errorf("field [arrays.i32s][%d] must be integer", itemIndex)
+				}
+				resultArr = append(resultArr, int32(rawValue))
+			}
+			obj.setArraysI32S(resultArr, originObj)
+		case "i64s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]int64)
+				if okTyped {
+					obj.setArraysI64S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.i64s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]int64, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toInt64(itemValue)
+				if !okItem || !validateSignedRange(rawValue, 64) {
+					return fmt.Errorf("field [arrays.i64s][%d] must be integer", itemIndex)
+				}
+				resultArr = append(resultArr, int64(rawValue))
+			}
+			obj.setArraysI64S(resultArr, originObj)
+		case "us":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]uint)
+				if okTyped {
+					obj.setArraysUs(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.us] unsupported type %T", valueObj)
+			}
+			resultArr := make([]uint, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toUint64(itemValue)
+				if !okItem || !validateUnsignedRange(rawValue, strconv.IntSize) {
+					return fmt.Errorf("field [arrays.us][%d] must be unsigned integer", itemIndex)
+				}
+				resultArr = append(resultArr, uint(rawValue))
+			}
+			obj.setArraysUs(resultArr, originObj)
+		case "u8s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]uint8)
+				if okTyped {
+					obj.setArraysU8S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.u8s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]uint8, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toUint64(itemValue)
+				if !okItem || !validateUnsignedRange(rawValue, 8) {
+					return fmt.Errorf("field [arrays.u8s][%d] must be unsigned integer", itemIndex)
+				}
+				resultArr = append(resultArr, uint8(rawValue))
+			}
+			obj.setArraysU8S(resultArr, originObj)
+		case "u16s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]uint16)
+				if okTyped {
+					obj.setArraysU16S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.u16s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]uint16, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toUint64(itemValue)
+				if !okItem || !validateUnsignedRange(rawValue, 16) {
+					return fmt.Errorf("field [arrays.u16s][%d] must be unsigned integer", itemIndex)
+				}
+				resultArr = append(resultArr, uint16(rawValue))
+			}
+			obj.setArraysU16S(resultArr, originObj)
+		case "u32s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]uint32)
+				if okTyped {
+					obj.setArraysU32S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.u32s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]uint32, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toUint64(itemValue)
+				if !okItem || !validateUnsignedRange(rawValue, 32) {
+					return fmt.Errorf("field [arrays.u32s][%d] must be unsigned integer", itemIndex)
+				}
+				resultArr = append(resultArr, uint32(rawValue))
+			}
+			obj.setArraysU32S(resultArr, originObj)
+		case "u64s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]uint64)
+				if okTyped {
+					obj.setArraysU64S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.u64s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]uint64, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toUint64(itemValue)
+				if !okItem || !validateUnsignedRange(rawValue, 64) {
+					return fmt.Errorf("field [arrays.u64s][%d] must be unsigned integer", itemIndex)
+				}
+				resultArr = append(resultArr, uint64(rawValue))
+			}
+			obj.setArraysU64S(resultArr, originObj)
+		case "f32s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]float32)
+				if okTyped {
+					obj.setArraysF32S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.f32s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]float32, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toFloat64(itemValue)
+				if !okItem || !validateFloatRange(rawValue, 32) {
+					return fmt.Errorf("field [arrays.f32s][%d] must be float", itemIndex)
+				}
+				resultArr = append(resultArr, float32(rawValue))
+			}
+			obj.setArraysF32S(resultArr, originObj)
+		case "f64s":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]float64)
+				if okTyped {
+					obj.setArraysF64S(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.f64s] unsupported type %T", valueObj)
+			}
+			resultArr := make([]float64, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				rawValue, okItem := toFloat64(itemValue)
+				if !okItem || !validateFloatRange(rawValue, 64) {
+					return fmt.Errorf("field [arrays.f64s][%d] must be float", itemIndex)
+				}
+				resultArr = append(resultArr, float64(rawValue))
+			}
+			obj.setArraysF64S(resultArr, originObj)
+		case "durations":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]time.Duration)
+				if okTyped {
+					obj.setArraysDurations(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.durations] unsupported type %T", valueObj)
+			}
+			resultArr := make([]time.Duration, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				switch typedItem := itemValue.(type) {
+				case time.Duration:
+					resultArr = append(resultArr, typedItem)
+				case string:
+					parsedValue, err := time.ParseDuration(strings.TrimSpace(typedItem))
+					if err != nil {
+						return fmt.Errorf("field [arrays.durations][%d]: %w", itemIndex, err)
+					}
+					resultArr = append(resultArr, parsedValue)
+				default:
+					return fmt.Errorf("field [arrays.durations][%d] unsupported type %T", itemIndex, itemValue)
+				}
+			}
+			obj.setArraysDurations(resultArr, originObj)
+		case "dur_aliases":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]time.Duration)
+				if okTyped {
+					obj.setArraysDurAliases(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.dur_aliases] unsupported type %T", valueObj)
+			}
+			resultArr := make([]time.Duration, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				switch typedItem := itemValue.(type) {
+				case time.Duration:
+					resultArr = append(resultArr, typedItem)
+				case string:
+					parsedValue, err := time.ParseDuration(strings.TrimSpace(typedItem))
+					if err != nil {
+						return fmt.Errorf("field [arrays.dur_aliases][%d]: %w", itemIndex, err)
+					}
+					resultArr = append(resultArr, parsedValue)
+				default:
+					return fmt.Errorf("field [arrays.dur_aliases][%d] unsupported type %T", itemIndex, itemValue)
+				}
+			}
+			obj.setArraysDurAliases(resultArr, originObj)
+		case "sizes":
+			inputArr, ok := toAnySlice(valueObj)
+			if !ok {
+				typedValue, okTyped := valueObj.([]SizeObj)
+				if okTyped {
+					obj.setArraysSizes(typedValue, originObj)
+					return nil
+				}
+				return fmt.Errorf("field [arrays.sizes] unsupported type %T", valueObj)
+			}
+			resultArr := make([]SizeObj, 0, len(inputArr))
+			for itemIndex, itemValue := range inputArr {
+				switch typedItem := itemValue.(type) {
+				case SizeObj:
+					resultArr = append(resultArr, typedItem)
+				case uint64:
+					resultArr = append(resultArr, SizeObj(typedItem))
+				case int:
+					if typedItem < 0 {
+						return fmt.Errorf("field [arrays.sizes][%d] must be non-negative", itemIndex)
+					}
+					resultArr = append(resultArr, SizeObj(typedItem))
+				case float64:
+					rawValue, okItem := toUint64(typedItem)
+					if !okItem {
+						return fmt.Errorf("field [arrays.sizes][%d] must be non-negative integer", itemIndex)
+					}
+					resultArr = append(resultArr, SizeObj(rawValue))
+				case string:
+					parsedValue, err := parseSize(strings.TrimSpace(typedItem))
+					if err != nil {
+						return fmt.Errorf("field [arrays.sizes][%d]: %w", itemIndex, err)
+					}
+					resultArr = append(resultArr, SizeObj(parsedValue))
+				default:
+					return fmt.Errorf("field [arrays.sizes][%d] unsupported type %T", itemIndex, itemValue)
+				}
+			}
+			obj.setArraysSizes(resultArr, originObj)
+		default:
+			return fmt.Errorf("unknown config key: %s", joinPathText("arrays", keyText))
+		}
+	}
+	return nil
+}
+
 // // // // // // // // // //
-
-func decodeJSONValue(dataArr []byte, targetObj any) error {
-	decoderObj := json.NewDecoder(bytes.NewReader(dataArr))
-	if err := decoderObj.Decode(targetObj); err != nil {
-		return err
-	}
-	var trailingObj any
-	if err := decoderObj.Decode(&trailingObj); err != io.EOF {
-		if err == nil {
-			return fmt.Errorf("trailing json token")
-		}
-		return err
-	}
-	return nil
-}
-
-func validateJSONDuplicateKeys(dataArr []byte) error {
-	decoderObj := json.NewDecoder(bytes.NewReader(dataArr))
-	if err := validateJSONValueKeys(decoderObj, "", 0); err != nil {
-		return err
-	}
-	if _, err := decoderObj.Token(); err != io.EOF {
-		if err == nil {
-			return fmt.Errorf("trailing json token")
-		}
-		return err
-	}
-	return nil
-}
-
-func validateJSONValueKeys(decoderObj *json.Decoder, prefixText string, depthVal int) error {
-	if depthVal > 256 {
-		return fmt.Errorf("json nesting is too deep")
-	}
-	tokenObj, err := decoderObj.Token()
-	if err != nil {
-		return err
-	}
-	delimiterObj, ok := tokenObj.(json.Delim)
-	if !ok {
-		return nil
-	}
-	switch delimiterObj {
-	case '{':
-		seenMap := map[string]struct{}{}
-		for decoderObj.More() {
-			keyTokenObj, keyErr := decoderObj.Token()
-			if keyErr != nil {
-				return keyErr
-			}
-			keyText, okKey := keyTokenObj.(string)
-			if !okKey {
-				return fmt.Errorf("json object key must be string")
-			}
-			pathText := joinPathText(prefixText, keyText)
-			if _, existsFlag := seenMap[keyText]; existsFlag {
-				return fmt.Errorf("duplicate key in config: %s", pathText)
-			}
-			seenMap[keyText] = struct{}{}
-			if err = validateJSONValueKeys(decoderObj, pathText, depthVal+1); err != nil {
-				return err
-			}
-		}
-		endTokenObj, endErr := decoderObj.Token()
-		if endErr != nil {
-			return endErr
-		}
-		if endTokenObj != json.Delim('}') {
-			return fmt.Errorf("invalid json object end")
-		}
-	case '[':
-		for decoderObj.More() {
-			if err = validateJSONValueKeys(decoderObj, prefixText, depthVal+1); err != nil {
-				return err
-			}
-		}
-		endTokenObj, endErr := decoderObj.Token()
-		if endErr != nil {
-			return endErr
-		}
-		if endTokenObj != json.Delim(']') {
-			return fmt.Errorf("invalid json array end")
-		}
-	}
-	return nil
-}
-
-func validateDuplicateKeysYAML(nodeObj *yaml.Node, prefixText string) error {
-	if nodeObj.Kind != yaml.MappingNode {
-		for _, childNodeObj := range nodeObj.Content {
-			if err := validateDuplicateKeysYAML(childNodeObj, prefixText); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	seenMap := make(map[string]struct{}, len(nodeObj.Content)/2)
-	for itemIndex := 0; itemIndex < len(nodeObj.Content); itemIndex += 2 {
-		keyNodeObj := nodeObj.Content[itemIndex]
-		valueNodeObj := nodeObj.Content[itemIndex+1]
-		pathText := joinPathText(prefixText, keyNodeObj.Value)
-		if _, existsFlag := seenMap[keyNodeObj.Value]; existsFlag {
-			return fmt.Errorf("duplicate key in config: %s", pathText)
-		}
-		seenMap[keyNodeObj.Value] = struct{}{}
-		if err := validateDuplicateKeysYAML(valueNodeObj, pathText); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // // // // // // // // // //
 
@@ -680,22 +1011,19 @@ func parseStringMapShorthand(textValue string) (map[string]string, error) {
 	return resultObj, nil
 }
 
-func parseJSONStringMap[T any](textValue string) (T, error) {
-	var resultObj T
-	err := json.Unmarshal([]byte(textValue), &resultObj)
-	return resultObj, err
-}
-
+// validateShorthandKey accepts the key characters that configuration files allow for map
+// keys (letters, digits, '_', '-', '.'); any other character makes the value fall back to the
+// JSON form, which can represent arbitrary keys.
 func validateShorthandKey(keyText string) error {
-	if len(keyText) == 0 || len(keyText) > 16 {
-		return fmt.Errorf("invalid shorthand key length [%s]", keyText)
+	if keyText == "" {
+		return fmt.Errorf("invalid shorthand key [%s]", keyText)
 	}
 	for _, itemRune := range keyText {
 		switch {
 		case itemRune >= 'a' && itemRune <= 'z':
 		case itemRune >= 'A' && itemRune <= 'Z':
 		case itemRune >= '0' && itemRune <= '9':
-		case itemRune == '_':
+		case itemRune == '_' || itemRune == '-' || itemRune == '.':
 		default:
 			return fmt.Errorf("invalid shorthand key [%s]", keyText)
 		}
@@ -773,7 +1101,6 @@ func (obj *runtimeBoolFlagObj) Set(valueText string) error {
 func (obj *runtimeBoolFlagObj) IsBoolFlag() bool {
 	return true
 }
-
 func normalizeAnyMap(valueObj any) any {
 	switch typedValue := valueObj.(type) {
 	case map[string]any:
@@ -806,27 +1133,22 @@ func normalizeAnyMap(valueObj any) any {
 }
 
 func renderValueServerHost(obj *ConfigObj) (any, error) {
-
 	return obj.Server.Host, nil
 }
 
 func renderValueServerPort(obj *ConfigObj) (any, error) {
-
 	return obj.Server.Port, nil
 }
 
 func renderValueServerSecure(obj *ConfigObj) (any, error) {
-
 	return obj.Server.Secure, nil
 }
 
 func renderValueLoggingLevel(obj *ConfigObj) (any, error) {
-
 	return obj.Logging.Level.String(), nil
 }
 
 func renderValueLoggingOutputs(obj *ConfigObj) (any, error) {
-
 	resultArr := make([]string, 0, len(obj.Logging.Outputs))
 	for _, itemObj := range obj.Logging.Outputs {
 		resultArr = append(resultArr, itemObj.String())
@@ -835,31 +1157,153 @@ func renderValueLoggingOutputs(obj *ConfigObj) (any, error) {
 }
 
 func renderValueLimitsTimeout(obj *ConfigObj) (any, error) {
-
 	return obj.Limits.Timeout.String(), nil
 }
 
 func renderValueLimitsBodyMax(obj *ConfigObj) (any, error) {
-
 	return obj.Limits.BodyMax.String(), nil
 }
 
 func renderValueFeaturesEnabled(obj *ConfigObj) (any, error) {
-
 	return obj.Features.Enabled, nil
 }
 
 func renderValueFeaturesRollout(obj *ConfigObj) (any, error) {
-
 	return obj.Features.Rollout, nil
 }
 
 func renderValueLabelsCommon(obj *ConfigObj) (any, error) {
-
 	return obj.Labels.Common, nil
 }
 
 func renderValueExtensionsRaw(obj *ConfigObj) (any, error) {
-
 	return normalizeAnyMap(obj.Extensions.Raw), nil
+}
+
+func renderValueNumbersI8(obj *ConfigObj) (any, error) {
+	return obj.Numbers.I8, nil
+}
+
+func renderValueNumbersI16(obj *ConfigObj) (any, error) {
+	return obj.Numbers.I16, nil
+}
+
+func renderValueNumbersI32(obj *ConfigObj) (any, error) {
+	return obj.Numbers.I32, nil
+}
+
+func renderValueNumbersI64(obj *ConfigObj) (any, error) {
+	return obj.Numbers.I64, nil
+}
+
+func renderValueNumbersU(obj *ConfigObj) (any, error) {
+	return obj.Numbers.U, nil
+}
+
+func renderValueNumbersU8(obj *ConfigObj) (any, error) {
+	return obj.Numbers.U8, nil
+}
+
+func renderValueNumbersU16(obj *ConfigObj) (any, error) {
+	return obj.Numbers.U16, nil
+}
+
+func renderValueNumbersU32(obj *ConfigObj) (any, error) {
+	return obj.Numbers.U32, nil
+}
+
+func renderValueNumbersU64(obj *ConfigObj) (any, error) {
+	return obj.Numbers.U64, nil
+}
+
+func renderValueNumbersF(obj *ConfigObj) (any, error) {
+	return obj.Numbers.F, nil
+}
+
+func renderValueNumbersF32(obj *ConfigObj) (any, error) {
+	return obj.Numbers.F32, nil
+}
+
+func renderValueNumbersF64(obj *ConfigObj) (any, error) {
+	return obj.Numbers.F64, nil
+}
+
+func renderValueNumbersDurAlias(obj *ConfigObj) (any, error) {
+	return obj.Numbers.DurAlias.String(), nil
+}
+
+func renderValueArraysBools(obj *ConfigObj) (any, error) {
+	return obj.Arrays.Bools, nil
+}
+
+func renderValueArraysInts(obj *ConfigObj) (any, error) {
+	return obj.Arrays.Ints, nil
+}
+
+func renderValueArraysI8S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.I8S, nil
+}
+
+func renderValueArraysI16S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.I16S, nil
+}
+
+func renderValueArraysI32S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.I32S, nil
+}
+
+func renderValueArraysI64S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.I64S, nil
+}
+
+func renderValueArraysUs(obj *ConfigObj) (any, error) {
+	return obj.Arrays.Us, nil
+}
+
+func renderValueArraysU8S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.U8S, nil
+}
+
+func renderValueArraysU16S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.U16S, nil
+}
+
+func renderValueArraysU32S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.U32S, nil
+}
+
+func renderValueArraysU64S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.U64S, nil
+}
+
+func renderValueArraysF32S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.F32S, nil
+}
+
+func renderValueArraysF64S(obj *ConfigObj) (any, error) {
+	return obj.Arrays.F64S, nil
+}
+
+func renderValueArraysDurations(obj *ConfigObj) (any, error) {
+	resultArr := make([]string, 0, len(obj.Arrays.Durations))
+	for _, itemObj := range obj.Arrays.Durations {
+		resultArr = append(resultArr, itemObj.String())
+	}
+	return resultArr, nil
+}
+
+func renderValueArraysDurAliases(obj *ConfigObj) (any, error) {
+	resultArr := make([]string, 0, len(obj.Arrays.DurAliases))
+	for _, itemObj := range obj.Arrays.DurAliases {
+		resultArr = append(resultArr, itemObj.String())
+	}
+	return resultArr, nil
+}
+
+func renderValueArraysSizes(obj *ConfigObj) (any, error) {
+	resultArr := make([]string, 0, len(obj.Arrays.Sizes))
+	for _, itemObj := range obj.Arrays.Sizes {
+		resultArr = append(resultArr, itemObj.String())
+	}
+	return resultArr, nil
 }

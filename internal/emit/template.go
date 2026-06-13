@@ -20,7 +20,6 @@ var cTemplateObj = template.Must(template.New("goconfgen").Funcs(template.FuncMa
 	"quoteJoin":           quoteJoin,
 	"hexBytes":            renderHexBytes,
 	"goName":              goName,
-	"fieldGoType":         fieldGoType,
 	"fieldMetaVarName":    fieldMetaVarName,
 	"kindLiteral":         kindLiteral,
 	"bitSizeLiteral":      bitSizeLiteral,
@@ -35,6 +34,8 @@ var cTemplateObj = template.Must(template.New("goconfgen").Funcs(template.FuncMa
 	"singleLineUsage":     singleLineUsage,
 	"boolLiteral":         boolLiteral,
 	"rawBytesLiteral":     rawBytesLiteral,
+	"fieldRenderValue":    renderFieldValue,
+	"fieldAssign":         renderFieldAssign,
 }).ParseFS(cTemplateFS, "templates/*.tmpl"))
 
 // //

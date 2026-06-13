@@ -24,6 +24,8 @@ type TypeObj struct {
 	GoText         string
 	Family         TypeFamilyObj
 	ElemSchemaText string
+	Kind           FieldKindObj
+	BitSize        int
 	IsDuration     bool
 	IsSize         bool
 	IsEnum         bool
@@ -44,6 +46,7 @@ type RangeObj struct {
 
 type EnumObj struct {
 	PathText     string
+	NameText     string
 	TypeName     string
 	UsageText    string
 	ValueTextArr []string

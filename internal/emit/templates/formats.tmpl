@@ -1,0 +1,75 @@
+package {{ .PackageName }}
+
+import "fmt"
+
+// // // // // // // // // //
+
+// FormatObj — единый объект формата с одинаковым набором методов. Потребитель перечисляет
+// поддерживаемые форматы через Formats() и выбирает нужный, не зная имён конкретных функций.
+type FormatObj struct {
+nameText string
+parseFn  func([]byte, bool) (*ConfigObj, error)
+renderFn func(*ConfigObj, bool) ([]byte, error)
+}
+
+// //
+
+func (obj FormatObj) Name() string {
+return obj.nameText
+}
+
+func (obj FormatObj) CanRender() bool {
+return obj.renderFn != nil
+}
+
+func (obj FormatObj) Parse(dataArr []byte) (*ConfigObj, error) {
+return obj.parseFn(dataArr, true)
+}
+
+func (obj FormatObj) ParseWithoutDefaults(dataArr []byte) (*ConfigObj, error) {
+return obj.parseFn(dataArr, false)
+}
+
+func (obj FormatObj) Render(cfgObj *ConfigObj, partialFlag bool) ([]byte, error) {
+if obj.renderFn == nil {
+return nil, fmt.Errorf("format %q does not support rendering", obj.nameText)
+}
+return obj.renderFn(cfgObj, partialFlag)
+}
+
+// //
+
+// Formats возвращает включённые форматы в порядке yaml, json, hjson.
+func Formats() []FormatObj {
+return []FormatObj{
+{{- if .HasYAML }}
+{nameText: "yaml", parseFn: parseYAMLBytes, renderFn: {{ if .HasRender }}func(cfgObj *ConfigObj, partialFlag bool) ([]byte, error) { return cfgObj.RenderYAML(partialFlag) }{{ else }}nil{{ end }}},
+{{- end }}
+{{- if .HasJSON }}
+{nameText: "json", parseFn: parseJSONBytes, renderFn: {{ if .HasRender }}func(cfgObj *ConfigObj, partialFlag bool) ([]byte, error) { return cfgObj.RenderJSON(partialFlag) }{{ else }}nil{{ end }}},
+{{- end }}
+{{- if .HasHJSON }}
+{nameText: "hjson", parseFn: parseHJSONBytes, renderFn: {{ if .HasRender }}func(cfgObj *ConfigObj, partialFlag bool) ([]byte, error) { return cfgObj.RenderHJSON(partialFlag) }{{ else }}nil{{ end }}},
+{{- end }}
+}
+}
+
+// FormatNames возвращает имена включённых форматов.
+func FormatNames() []string {
+formatObjArr := Formats()
+nameTextArr := make([]string, 0, len(formatObjArr))
+for _, formatObj := range formatObjArr {
+nameTextArr = append(nameTextArr, formatObj.Name())
+}
+return nameTextArr
+}
+
+// FormatByName ищет формат по имени.
+func FormatByName(nameText string) (FormatObj, bool) {
+for _, formatObj := range Formats() {
+if formatObj.Name() == nameText {
+return formatObj, true
+}
+}
+return FormatObj{}, false
+}

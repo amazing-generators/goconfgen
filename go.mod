@@ -1,6 +1,6 @@
 module github.com/amazing-generators/goconfgen
 
-go 1.19
+go 1.21
 
 require (
 	github.com/hjson/hjson-go/v4 v4.4.0

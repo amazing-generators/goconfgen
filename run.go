@@ -52,7 +52,7 @@ func Run(config ConfigObj) (*ResultObj, error) {
 	for _, fileObj := range fileObjArr {
 		keepNameMap[fileObj.RelativePath] = struct{}{}
 	}
-	if err = cleanupStaleGeneratedFiles(normalizedConfig.OutputDir, keepNameMap, emit.KnownGeneratedFileNameArr(), normalizedConfig.Force); err != nil {
+	if err = cleanupStaleGeneratedFiles(normalizedConfig.OutputDir, keepNameMap, normalizedConfig.Force); err != nil {
 		return nil, err
 	}
 

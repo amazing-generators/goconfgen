@@ -2,6 +2,7 @@ package semantic
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -195,7 +196,7 @@ func anyToGoLiteral(valueObj any) (string, error) {
 		for keyText := range typedValue {
 			keyTextArr = append(keyTextArr, keyText)
 		}
-		sortStringArr(keyTextArr)
+		sort.Strings(keyTextArr)
 
 		partTextArr := make([]string, 0, len(keyTextArr))
 		for _, keyText := range keyTextArr {
@@ -219,13 +220,5 @@ func anyToGoLiteral(valueObj any) (string, error) {
 		return "[]any{" + strings.Join(partTextArr, ", ") + "}", nil
 	default:
 		return "", fmt.Errorf("unsupported value in map[string]any default: %T", valueObj)
-	}
-}
-
-func sortStringArr(textArr []string) {
-	for outerIndex := 1; outerIndex < len(textArr); outerIndex++ {
-		for innerIndex := outerIndex; innerIndex > 0 && textArr[innerIndex-1] > textArr[innerIndex]; innerIndex-- {
-			textArr[innerIndex-1], textArr[innerIndex] = textArr[innerIndex], textArr[innerIndex-1]
-		}
 	}
 }

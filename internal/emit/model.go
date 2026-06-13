@@ -53,7 +53,6 @@ type TemplateDataObj struct {
 	RuntimeImportTextArr   []string
 	FlagImportTextArr      []string
 	ValidateImportTextArr  []string
-	PresetImportTextArr    []string
 	PresetObjArr           []PresetTemplateObj
 	PresetDataArr          []byte
 }

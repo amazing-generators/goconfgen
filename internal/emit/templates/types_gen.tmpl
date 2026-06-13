@@ -89,7 +89,7 @@ originMap map[string]fieldOriginObj
 {{- range commentLines .UsageText }}
 // {{ . }}
 {{- end }}
-{{ goName .KeyText }} {{ fieldGoType . }}
+{{ goName .KeyText }} {{ .GoTypeText }}
 {{- end }}
 }
 {{ range .BranchObjArr }}
@@ -106,7 +106,7 @@ type {{ .InterfaceTypeText }} interface {
 Get{{ goName .KeyText }}() {{ interfaceReturnType . }}
 {{- end }}
 {{- range .FieldObjArr }}
-Get{{ goName .KeyText }}() {{ fieldGoType . }}
+Get{{ goName .KeyText }}() {{ .GoTypeText }}
 {{- end }}
 }
 
@@ -117,7 +117,7 @@ return obj.{{ goName .KeyText }}
 
 {{- end }}
 {{- range .FieldObjArr }}
-func (obj {{ $branch.TypeNameText }}) Get{{ goName .KeyText }}() {{ fieldGoType . }} {
+func (obj {{ $branch.TypeNameText }}) Get{{ goName .KeyText }}() {{ .GoTypeText }} {
 return obj.{{ goName .KeyText }}
 }
 
